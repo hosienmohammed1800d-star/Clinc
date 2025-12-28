@@ -6,7 +6,7 @@
     doc, onSnapshot, query, writeBatch
   } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-firestore.js";
 
-  /** ===== Firebase ===== */
+  // ✅ Firebase config
   const firebaseConfig = {
     apiKey: "AIzaSyC_KaWOZVWJ5WvVhUjiz58dx6d6sWH1EZQ",
     authDomain: "clinic-storage.firebaseapp.com",
@@ -17,65 +17,48 @@
   };
   const appId = "clinic-storage";
 
-  const app = initializeApp(firebaseConfig);
-  const auth = getAuth(app);
-  const db = getFirestore(app);
-
-  /** ===== Helpers ===== */
+  // ===== Helpers =====
   const $ = (id) => document.getElementById(id);
   const esc = (v) => String(v ?? "").replace(/"/g, "&quot;");
-
-  function invCol(){ return collection(db, "artifacts", appId, "public", "data", "inventory"); }
-
-  /** ===== Settings ===== */
-  const DEFAULT_SETTINGS = { theme:"midnight", lowThreshold:2, currency:"د.ع" };
-  const DEFAULT_TEXTS = {
-    title:"مخزن د. ثائر - سحابي",
-    header:"مخزن د. ثائر السحابي",
-    btnSettings:"الإعدادات",
-    btnExcel:"تصدير إكسل",
-    btnAdd:"إضافة مادة",
-    statusOk:"متوفر",
-    statusLow:"نقص",
-    colName:"المادة",
-    colDesc:"الوصف",
-    colStart:"البداية",
-    colBought:"مشتريات",
-    colSpent:"مصروف"
+  const loadJson = (k, fallback) => {
+    try { return { ...fallback, ...(JSON.parse(localStorage.getItem(k) || "{}")) }; }
+    catch { return { ...fallback }; }
   };
+  const saveJson = (k, obj) => localStorage.setItem(k, JSON.stringify(obj));
 
-  const loadJson = (k, f) => { try{ return { ...f, ...(JSON.parse(localStorage.getItem(k)||"{}")) }; }catch{ return { ...f }; } };
-  const saveJson = (k, o) => localStorage.setItem(k, JSON.stringify(o));
+  // ===== Settings + Texts =====
+  const DEFAULT_SETTINGS = { theme: "midnight", lowThreshold: 2, currency: "د.ع" };
+  const DEFAULT_TEXTS = {
+    title: "مخزن د. ثائر - سحابي",
+    header: "مخزن د. ثائر السحابي",
+    btnSettings: "الإعدادات",
+    btnExcel: "تصدير إكسل",
+    btnAdd: "إضافة مادة",
+    statusOk: "متوفر",
+    statusLow: "نقص",
+    colName: "المادة",
+    colDesc: "الوصف",
+    colStart: "البداية",
+    colBought: "مشتريات",
+    colSpent: "مصروف"
+  };
 
   let SETTINGS = loadJson("settings", DEFAULT_SETTINGS);
   let TEXTS = loadJson("texts", DEFAULT_TEXTS);
 
-  function applyTheme(){
+  function applyTheme() {
     document.documentElement.setAttribute("data-theme", SETTINGS.theme || "midnight");
   }
 
-  function applyTexts(){
+  function applyTexts() {
     document.title = TEXTS.title;
 
     const h1 = document.querySelector("header h1");
-    if(h1) h1.textContent = TEXTS.header;
+    if (h1) h1.textContent = TEXTS.header;
 
-    // زر الإعدادات
-    const btnSettings = document.querySelector('button[onclick="openSettings()"]');
-    if(btnSettings) btnSettings.innerHTML = `<i class="fas fa-gear"></i> ${TEXTS.btnSettings}`;
-
-    // زر إكسل
-    const btnExcel = document.querySelector('button[onclick="exportToExcel()"]');
-    if(btnExcel) btnExcel.innerHTML = `<i class="fas fa-file-excel"></i> ${TEXTS.btnExcel}`;
-
-    // زر إضافة
-    const addBtn = document.querySelector("#addForm button[type='submit']");
-    if(addBtn) addBtn.innerHTML = `${TEXTS.btnAdd} <i class="fas fa-plus mr-1"></i>`;
-
-    // رؤوس الجدول
     const ths = document.querySelectorAll("thead th");
     // #, المادة, الوصف, البداية, مشتريات, مصروف, المتبقي, سعر CC, القيمة, الحالة, حذف
-    if(ths.length >= 11){
+    if (ths.length >= 11) {
       ths[1].textContent = TEXTS.colName;
       ths[2].textContent = TEXTS.colDesc;
       ths[3].textContent = TEXTS.colStart;
@@ -84,223 +67,191 @@
     }
   }
 
-  /** ===== Admin Password Gate (واجهة فقط) ===== */
+  // ===== Admin (Option A - UI lock) =====
   const ADMIN_UNLOCK_KEY = "admin_unlocked";
-  const ADMIN_PASS_HASH_KEY = "admin_pass_hash";
-  const DEFAULT_ADMIN_PASSWORD = "admin123"; // غيره
+  const ADMIN_PASS_KEY = "admin_password_plain"; // ⚠️ خيار A: باسوورد داخل المتصفح
+  const DEFAULT_ADMIN_PASSWORD = "admin123";     // غيره مثل ما تريد
 
-  async function sha256(text){
-    const enc = new TextEncoder().encode(text);
-    const buf = await crypto.subtle.digest("SHA-256", enc);
-    return [...new Uint8Array(buf)].map(b=>b.toString(16).padStart(2,"0")).join("");
-  }
-
-  async function ensureAdminPass(){
-    if(!localStorage.getItem(ADMIN_PASS_HASH_KEY)){
-      localStorage.setItem(ADMIN_PASS_HASH_KEY, await sha256(DEFAULT_ADMIN_PASSWORD));
+  function ensureAdminPass() {
+    if (!localStorage.getItem(ADMIN_PASS_KEY)) {
+      localStorage.setItem(ADMIN_PASS_KEY, DEFAULT_ADMIN_PASSWORD);
     }
   }
 
   window.isAdmin = () => localStorage.getItem(ADMIN_UNLOCK_KEY) === "1";
-  function setAdmin(on){ localStorage.setItem(ADMIN_UNLOCK_KEY, on ? "1" : "0"); refreshAdminUI(); }
+  function setAdmin(on) {
+    localStorage.setItem(ADMIN_UNLOCK_KEY, on ? "1" : "0");
+    refreshAdminUI();
+  }
 
-  window.openAdmin = () => { $("adminModal").classList.remove("hidden"); $("adminError").classList.add("hidden"); $("adminPassword").value=""; };
-  window.closeAdmin = () => $("adminModal").classList.add("hidden");
+  window.openAdmin = () => {
+    const m = $("adminModal");
+    if (!m) return alert("adminModal مو موجود بالـ HTML");
+    m.classList.remove("hidden");
+    const err = $("adminError");
+    if (err) err.classList.add("hidden");
+    const ip = $("adminPassword");
+    if (ip) ip.value = "";
+  };
+  window.closeAdmin = () => $("adminModal")?.classList.add("hidden");
 
-  window.adminLogin = async () => {
-    const pass = ($("adminPassword").value || "").trim();
-    const stored = localStorage.getItem(ADMIN_PASS_HASH_KEY);
-    const h = await sha256(pass);
-    if(h === stored){
+  window.adminLogin = () => {
+    const pass = ($("adminPassword")?.value || "").trim();
+    const stored = localStorage.getItem(ADMIN_PASS_KEY) || DEFAULT_ADMIN_PASSWORD;
+    if (pass === stored) {
       setAdmin(true);
-      closeAdmin();
-    }else{
-      $("adminError").classList.remove("hidden");
+      window.closeAdmin();
+    } else {
+      $("adminError")?.classList.remove("hidden");
     }
   };
 
   window.adminLogout = () => setAdmin(false);
 
-  function refreshAdminUI(){
+  function refreshAdminUI() {
     const locked = !window.isAdmin();
 
-    // قفل فورم الإضافة
+    // قفل الفورم
     const form = $("addForm");
-    if(form){
-      form.querySelectorAll("input,button").forEach(el=>{
+    if (form) {
+      form.querySelectorAll("input,button").forEach(el => {
         el.disabled = locked;
         el.classList.toggle("opacity-60", locked);
         el.classList.toggle("cursor-not-allowed", locked);
       });
     }
 
-    // قفل inputs داخل الجدول + اخفاء حذف
+    // قفل جدول
     const body = $("tableBody");
-    if(body){
-      body.querySelectorAll("input").forEach(inp=>{
+    if (body) {
+      body.querySelectorAll("input").forEach(inp => {
         inp.disabled = locked;
         inp.classList.toggle("opacity-60", locked);
         inp.classList.toggle("cursor-not-allowed", locked);
       });
-      body.querySelectorAll("button[data-del='1']").forEach(btn=>{
+      body.querySelectorAll("button[data-del='1']").forEach(btn => {
         btn.style.display = locked ? "none" : "";
       });
     }
   }
 
-  /** ===== Settings UI functions ===== */
+  // ===== Settings Modal (إذا موجود) =====
   window.openSettings = () => {
-    $("settingsModal").classList.remove("hidden");
-    $("themeSelect").value = SETTINGS.theme;
-    $("thresholdInput").value = SETTINGS.lowThreshold;
-    $("currencyInput").value = SETTINGS.currency;
+    $("settingsModal")?.classList.remove("hidden");
+    if ($("themeSelect")) $("themeSelect").value = SETTINGS.theme;
+    if ($("thresholdInput")) $("thresholdInput").value = SETTINGS.lowThreshold;
+    if ($("currencyInput")) $("currencyInput").value = SETTINGS.currency;
   };
-  window.closeSettings = () => $("settingsModal").classList.add("hidden");
+  window.closeSettings = () => $("settingsModal")?.classList.add("hidden");
 
   window.saveSettingsUI = () => {
-    SETTINGS.theme = $("themeSelect").value;
-    SETTINGS.lowThreshold = Math.max(0, parseFloat($("thresholdInput").value) || 2);
-    SETTINGS.currency = ($("currencyInput").value || "د.ع").trim();
+    if ($("themeSelect")) SETTINGS.theme = $("themeSelect").value;
+    if ($("thresholdInput")) SETTINGS.lowThreshold = Math.max(0, parseFloat($("thresholdInput").value) || 2);
+    if ($("currencyInput")) SETTINGS.currency = ($("currencyInput").value || "د.ع").trim();
+
     saveJson("settings", SETTINGS);
     applyTheme();
     renderTable();
-    closeSettings();
+    window.closeSettings();
   };
 
-  window.openTexts = () => {
-    $("textsModal").classList.remove("hidden");
-    $("t_title").value = TEXTS.title;
-    $("t_header").value = TEXTS.header;
-    $("t_btnSettings").value = TEXTS.btnSettings;
-    $("t_btnExcel").value = TEXTS.btnExcel;
-    $("t_btnAdd").value = TEXTS.btnAdd;
-    $("t_statusOk").value = TEXTS.statusOk;
-    $("t_statusLow").value = TEXTS.statusLow;
-    $("t_colName").value = TEXTS.colName;
-    $("t_colDesc").value = TEXTS.colDesc;
-    $("t_colStart").value = TEXTS.colStart;
-    $("t_colBought").value = TEXTS.colBought;
-    $("t_colSpent").value = TEXTS.colSpent;
-  };
-  window.closeTexts = () => $("textsModal").classList.add("hidden");
+  // ===== Firebase =====
+  const app = initializeApp(firebaseConfig);
+  const auth = getAuth(app);
+  const db = getFirestore(app);
 
-  window.saveTextsUI = () => {
-    TEXTS = {
-      ...TEXTS,
-      title: $("t_title").value || TEXTS.title,
-      header: $("t_header").value || TEXTS.header,
-      btnSettings: $("t_btnSettings").value || TEXTS.btnSettings,
-      btnExcel: $("t_btnExcel").value || TEXTS.btnExcel,
-      btnAdd: $("t_btnAdd").value || TEXTS.btnAdd,
-      statusOk: $("t_statusOk").value || TEXTS.statusOk,
-      statusLow: $("t_statusLow").value || TEXTS.statusLow,
-      colName: $("t_colName").value || TEXTS.colName,
-      colDesc: $("t_colDesc").value || TEXTS.colDesc,
-      colStart: $("t_colStart").value || TEXTS.colStart,
-      colBought: $("t_colBought").value || TEXTS.colBought,
-      colSpent: $("t_colSpent").value || TEXTS.colSpent,
-    };
-    saveJson("texts", TEXTS);
-    applyTexts();
-    renderTable();
-    closeTexts();
-  };
-
-  /** ===== Firebase Realtime ===== */
   let currentUser = null;
   let inventory = [];
   let sortableInited = false;
 
-  function setStatusOnline(uid){
-    const s = $("syncStatus");
-    s.innerHTML = '<i class="fas fa-circle text-[8px]"></i> متصل سحابياً';
-    s.className = "status-online";
-    $("userDisplay").innerText = `المعرف: ${uid.substring(0,8)}`;
-  }
-  function setStatusOffline(msg){
-    const s = $("syncStatus");
-    s.textContent = `فشل الاتصال${msg ? ": " + msg : ""}`;
-    s.className = "status-offline";
+  function invCol() {
+    return collection(db, "artifacts", appId, "public", "data", "inventory");
   }
 
-  async function initAuth(){
-    try{ await signInAnonymously(auth); }
-    catch(err){
-      console.error(err);
+  function setStatusOnline(uid) {
+    const s = $("syncStatus");
+    if (s) {
+      s.innerHTML = '<i class="fas fa-circle text-[8px]"></i> متصل سحابياً';
+      s.className = "status-online";
+    }
+    const u = $("userDisplay");
+    if (u) u.textContent = `المعرف: ${uid.substring(0, 8)}`;
+  }
+
+  function setStatusOffline(msg) {
+    const s = $("syncStatus");
+    if (s) {
+      s.textContent = `فشل الاتصال${msg ? ": " + msg : ""}`;
+      s.className = "status-offline";
+    }
+  }
+
+  async function initAuth() {
+    try {
+      await signInAnonymously(auth);
+    } catch (err) {
+      console.error("Auth Failure:", err);
       setStatusOffline(err?.code || err?.message || "Auth error");
     }
   }
 
-  onAuthStateChanged(auth, (user)=>{
-    if(!user) return;
-    currentUser = user;
-    setStatusOnline(user.uid);
-    startRealtime();
-  });
-
-  function startRealtime(){
-    onSnapshot(query(invCol()),
-      (snap)=>{
-        inventory = snap.docs.map(d=>({ id:d.id, ...d.data() }))
-          .sort((a,b)=>(a.order||0)-(b.order||0));
+  function startRealtime() {
+    onSnapshot(
+      query(invCol()),
+      (snap) => {
+        inventory = snap.docs.map(d => ({ id: d.id, ...d.data() }))
+          .sort((a, b) => (a.order || 0) - (b.order || 0));
         renderTable();
       },
-      (err)=>{
-        console.error(err);
+      (err) => {
+        console.error("Firestore snapshot error:", err);
         setStatusOffline(err?.code || err?.message || "Firestore error");
       }
     );
   }
 
-  window.updateField = async (id, field, value)=>{
-    if(!window.isAdmin()){ openAdmin(); return; }
-    if(!currentUser) return;
-
-    const isText = (field==="name" || field==="desc");
-    const val = isText ? (value ?? "") : (parseFloat(value) || 0);
-
-    await updateDoc(doc(db,"artifacts",appId,"public","data","inventory",id), { [field]: val });
-  };
-
-  window.deleteItem = async (id)=>{
-    if(!window.isAdmin()){ openAdmin(); return; }
-    if(!confirm("حذف نهائي؟")) return;
-    await deleteDoc(doc(db,"artifacts",appId,"public","data","inventory",id));
-  };
-
-  $("addForm").addEventListener("submit", async (e)=>{
-    e.preventDefault();
-    if(!window.isAdmin()){ openAdmin(); return; }
-
-    const name = ($("name").value||"").trim();
-    const desc = ($("desc").value||"").trim();
-    const start = parseFloat($("start").value)||0;
-    const cost = parseFloat($("cost").value)||0;
-    if(!name) return;
-
-    await addDoc(invCol(), { name, desc, start, bought:0, spent:0, cost, order: inventory.length, createdAt: Date.now() });
-    e.target.reset();
+  onAuthStateChanged(auth, (user) => {
+    if (!user) return;
+    currentUser = user;
+    setStatusOnline(user.uid);
+    startRealtime();
   });
 
-  function renderTable(){
+  window.updateField = async (id, field, value) => {
+    if (!window.isAdmin()) { window.openAdmin(); return; }
+    if (!currentUser) return;
+
+    const isText = field === "name" || field === "desc";
+    const val = isText ? (value ?? "") : (parseFloat(value) || 0);
+
+    await updateDoc(doc(db, "artifacts", appId, "public", "data", "inventory", id), { [field]: val });
+  };
+
+  window.deleteItem = async (id) => {
+    if (!window.isAdmin()) { window.openAdmin(); return; }
+    if (!confirm("حذف نهائي؟")) return;
+    await deleteDoc(doc(db, "artifacts", appId, "public", "data", "inventory", id));
+  };
+
+  function renderTable() {
     const body = $("tableBody");
-    if(!body) return;
+    if (!body) return;
+
     body.innerHTML = "";
+    let totalVal = 0, totalSpentCount = 0, lowStock = 0;
 
-    let totalVal=0, totalSpentCount=0, lowStock=0;
+    for (const item of inventory) {
+      const start = Number(item.start) || 0;
+      const bought = Number(item.bought) || 0;
+      const spent = Number(item.spent) || 0;
+      const cost = Number(item.cost) || 0;
 
-    for(const item of inventory){
-      const start = Number(item.start)||0;
-      const bought = Number(item.bought)||0;
-      const spent  = Number(item.spent)||0;
-      const cost   = Number(item.cost)||0;
-
-      const remaining = (start+bought)-spent;
-      const rowValue = remaining*cost;
+      const remaining = (start + bought) - spent;
+      const rowValue = remaining * cost;
 
       totalVal += rowValue;
       totalSpentCount += spent;
-      if(remaining <= SETTINGS.lowThreshold) lowStock++;
+      if (remaining <= SETTINGS.lowThreshold) lowStock++;
 
       const statusText = remaining <= SETTINGS.lowThreshold ? TEXTS.statusLow : TEXTS.statusOk;
       const statusClass = remaining <= SETTINGS.lowThreshold ? "text-red-400 font-bold" : "text-emerald-400 font-bold";
@@ -355,38 +306,41 @@
         <td class="p-2 text-center ${statusClass}">${statusText}</td>
 
         <td class="p-2 text-center">
-          <button data-del="1" onclick="deleteItem('${item.id}')"
-            class="text-slate-600 hover:text-red-500 transition-colors">
+          <button data-del="1" onclick="deleteItem('${item.id}')" class="text-slate-600 hover:text-red-500 transition-colors">
             <i class="fas fa-trash-alt"></i>
           </button>
         </td>
       `;
+
       body.appendChild(tr);
     }
 
-    $("totalValue").innerText = totalVal.toLocaleString() + " " + SETTINGS.currency;
-    $("totalItems").innerText = inventory.length;
-    $("lowStockCount").innerText = lowStock;
-    $("totalSpent").innerText = totalSpentCount;
+    if ($("totalValue")) $("totalValue").innerText = totalVal.toLocaleString() + " " + SETTINGS.currency;
+    if ($("totalItems")) $("totalItems").innerText = inventory.length;
+    if ($("lowStockCount")) $("lowStockCount").innerText = lowStock;
+    if ($("totalSpent")) $("totalSpent").innerText = totalSpentCount;
 
     ensureSortable();
     refreshAdminUI();
   }
 
-  function ensureSortable(){
-    if(sortableInited) return;
-    if(typeof Sortable === "undefined") return;
+  function ensureSortable() {
+    if (sortableInited) return;
+    if (typeof Sortable === "undefined") return;
 
-    Sortable.create($("tableBody"), {
+    const tb = $("tableBody");
+    if (!tb) return;
+
+    Sortable.create(tb, {
       handle: ".handle",
       animation: 150,
       onEnd: async () => {
-        if(!window.isAdmin()){ openAdmin(); renderTable(); return; }
+        if (!window.isAdmin()) { window.openAdmin(); renderTable(); return; }
         const batch = writeBatch(db);
-        document.querySelectorAll("#tableBody tr").forEach((row, idx)=>{
+        document.querySelectorAll("#tableBody tr").forEach((row, idx) => {
           const id = row.getAttribute("data-id");
-          if(!id) return;
-          batch.update(doc(db,"artifacts",appId,"public","data","inventory",id), { order: idx });
+          if (!id) return;
+          batch.update(doc(db, "artifacts", appId, "public", "data", "inventory", id), { order: idx });
         });
         await batch.commit();
       }
@@ -395,13 +349,12 @@
     sortableInited = true;
   }
 
-  /** ===== Excel ===== */
+  // ===== Excel =====
   window.exportToExcel = () => {
-    if(typeof XLSX === "undefined"){ alert("XLSX مو محمّلة"); return; }
-
-    const data = inventory.map(i=>{
-      const start = Number(i.start)||0, bought=Number(i.bought)||0, spent=Number(i.spent)||0, cost=Number(i.cost)||0;
-      const remaining = (start+bought)-spent;
+    if (typeof XLSX === "undefined") return alert("XLSX مو محمّلة");
+    const data = inventory.map(i => {
+      const start = Number(i.start) || 0, bought = Number(i.bought) || 0, spent = Number(i.spent) || 0, cost = Number(i.cost) || 0;
+      const remaining = (start + bought) - spent;
       const status = remaining <= SETTINGS.lowThreshold ? TEXTS.statusLow : TEXTS.statusOk;
 
       return {
@@ -423,10 +376,37 @@
     XLSX.writeFile(wb, `مخزن_د_ثائر_${new Date().toISOString().split("T")[0]}.xlsx`);
   };
 
-  /** ===== Boot ===== */
-  await ensureAdminPass();
-  applyTheme();
-  applyTexts();
-  refreshAdminUI();
-  initAuth();
+  // ===== Boot (بعد ما DOM جاهز) =====
+  function boot() {
+    ensureAdminPass();
+    applyTheme();
+    applyTexts();
+    refreshAdminUI();
+
+    // إذا الفورم موجود
+    const form = $("addForm");
+    if (form) {
+      form.addEventListener("submit", async (e) => {
+        e.preventDefault();
+        if (!window.isAdmin()) { window.openAdmin(); return; }
+
+        const name = ($("name")?.value || "").trim();
+        const desc = ($("desc")?.value || "").trim();
+        const start = parseFloat($("start")?.value) || 0;
+        const cost = parseFloat($("cost")?.value) || 0;
+        if (!name) return;
+
+        await addDoc(invCol(), { name, desc, start, bought: 0, spent: 0, cost, order: inventory.length, createdAt: Date.now() });
+        form.reset();
+      });
+    }
+
+    initAuth();
+  }
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", boot);
+  } else {
+    boot();
+  }
 </script>
