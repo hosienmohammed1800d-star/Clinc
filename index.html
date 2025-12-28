@@ -1,239 +1,406 @@
-<script type="module">
-  import { initializeApp } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-app.js";
-  import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-auth.js";
-  import {
-    getFirestore, collection, addDoc, updateDoc, deleteDoc,
-    doc, onSnapshot, query, writeBatch
-  } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-firestore.js";
-
-  // ✅ Firebase config
-  const firebaseConfig = {
-    apiKey: "AIzaSyC_KaWOZVWJ5WvVhUjiz58dx6d6sWH1EZQ",
-    authDomain: "clinic-storage.firebaseapp.com",
-    projectId: "clinic-storage",
-    storageBucket: "clinic-storage.firebasestorage.app",
-    messagingSenderId: "284636281654",
-    appId: "1:284636281654:web:aa19cd577c4efda5d21197"
-  };
-  const appId = "clinic-storage";
-
-  // ===== Helpers =====
-  const $ = (id) => document.getElementById(id);
-  const esc = (v) => String(v ?? "").replace(/"/g, "&quot;");
-  const loadJson = (k, fallback) => {
-    try { return { ...fallback, ...(JSON.parse(localStorage.getItem(k) || "{}")) }; }
-    catch { return { ...fallback }; }
-  };
-  const saveJson = (k, obj) => localStorage.setItem(k, JSON.stringify(obj));
-
-  // ===== Settings =====
-  let SETTINGS = loadJson("settings", { theme: "midnight", lowThreshold: 2, currency: "د.ع" });
-  let TEXTS = loadJson("texts", {
-    statusOk: "متوفر",
-    statusLow: "نقص",
-    colName: "المادة",
-    colDesc: "الوصف",
-    colStart: "البداية",
-    colBought: "مشتريات",
-    colSpent: "مصروف"
-  });
-
-  // ===== Admin Logic (Security Layer) =====
-  const ADMIN_PASS_KEY = "admin_password_plain";
-  const DEFAULT_PASS = "admin123";
-
-  window.isAdmin = () => localStorage.getItem("admin_unlocked") === "1";
-  
-  window.openAdmin = () => {
-    $("adminModal")?.classList.remove("hidden");
-    $("adminPassword")?.focus();
-  };
-
-  window.adminLogin = () => {
-    const pass = ($("adminPassword")?.value || "").trim();
-    const stored = localStorage.getItem(ADMIN_PASS_KEY) || DEFAULT_PASS;
-    if (pass === stored) {
-      localStorage.setItem("admin_unlocked", "1");
-      $("adminModal")?.classList.add("hidden");
-      refreshAdminUI();
-      renderTable(); // إعادة الرندر لتفعيل الأزرار
-    } else {
-      $("adminError")?.classList.remove("hidden");
-    }
-  };
-
-  window.adminLogout = () => {
-    localStorage.setItem("admin_unlocked", "0");
-    refreshAdminUI();
-    renderTable();
-  };
-
-  function refreshAdminUI() {
-    const locked = !window.isAdmin();
-    const form = $("addForm");
-    if (form) {
-      form.querySelectorAll("input,button").forEach(el => {
-        el.disabled = locked;
-        el.classList.toggle("opacity-50", locked);
-        el.classList.toggle("cursor-not-allowed", locked);
-      });
-    }
-  }
-
-  // ===== Firebase Setup =====
-  const app = initializeApp(firebaseConfig);
-  const auth = getAuth(app);
-  const db = getFirestore(app);
-  let inventory = [];
-
-  const invCol = () => collection(db, "artifacts", appId, "public", "data", "inventory");
-
-  // ===== Core Functions =====
-  async function initApp() {
-    try {
-      await signInAnonymously(auth);
-      onAuthStateChanged(auth, (user) => {
-        if (user) {
-          $("syncStatus")?.classList.add("text-emerald-400");
-          $("syncStatus").innerHTML = "● متصل سحابياً";
-          startRealtimeSync();
-        }
-      });
-    } catch (err) {
-      console.error("Auth Error:", err);
-      alert("فشل الاتصال بالسحابة");
-    }
-  }
-
-  function startRealtimeSync() {
-    onSnapshot(query(invCol()), (snap) => {
-      // حماية: لا تقم بإعادة بناء الجدول إذا كان المستخدم يكتب الآن في حقل نصي
-      const isTyping = document.activeElement && 
-                       (document.activeElement.tagName === "INPUT" || document.activeElement.tagName === "TEXTAREA");
-      
-      inventory = snap.docs.map(d => ({ id: d.id, ...d.data() }))
-                       .sort((a, b) => (a.order || 0) - (b.order || 0));
-      
-      if (!isTyping) {
-        renderTable();
-      }
-    }, (err) => {
-      console.error("Firestore Error:", err);
-    });
-  }
-
-  window.updateField = async (id, field, value) => {
-    if (!window.isAdmin()) return window.openAdmin();
-    try {
-      const isText = ["name", "desc"].includes(field);
-      const val = isText ? value : (parseFloat(value) || 0);
-      await updateDoc(doc(db, "artifacts", appId, "public", "data", "inventory", id), { [field]: val });
-    } catch (err) {
-      alert("حدث خطأ أثناء التحديث: " + err.message);
-    }
-  };
-
-  window.deleteItem = async (id) => {
-    if (!window.isAdmin()) return window.openAdmin();
-    if (!confirm("هل أنت متأكد من الحذف نهائياً؟")) return;
-    try {
-      await deleteDoc(doc(db, "artifacts", appId, "public", "data", "inventory", id));
-    } catch (err) {
-      alert("فشل الحذف");
-    }
-  };
-
-  function renderTable() {
-    const body = $("tableBody");
-    if (!body) return;
-
-    body.innerHTML = "";
-    let totals = { val: 0, spent: 0, low: 0 };
-
-    inventory.forEach((item) => {
-      const start = Number(item.start) || 0;
-      const bought = Number(item.bought) || 0;
-      const spent = Number(item.spent) || 0;
-      const cost = Number(item.cost) || 0;
-      const remaining = (start + bought) - spent;
-      const rowValue = remaining * cost;
-
-      totals.val += rowValue;
-      totals.spent += spent;
-      if (remaining <= SETTINGS.lowThreshold) totals.low++;
-
-      const isLow = remaining <= SETTINGS.lowThreshold;
-      const isAdmin = window.isAdmin();
-
-      const tr = document.createElement("tr");
-      tr.className = "border-b border-slate-800 hover:bg-slate-800/40 transition-colors";
-      tr.innerHTML = `
-        <td class="p-2 text-center"><i class="fas fa-grip-vertical handle text-slate-700 cursor-move"></i></td>
-        <td class="p-2"><input type="text" value="${esc(item.name)}" onblur="updateField('${item.id}','name',this.value)" ${!isAdmin?'disabled':''} class="w-full bg-transparent border-none focus:ring-1 focus:ring-blue-500 font-bold rounded px-2"></td>
-        <td class="p-2"><input type="text" value="${esc(item.desc)}" onblur="updateField('${item.id}','desc',this.value)" ${!isAdmin?'disabled':''} class="w-full bg-transparent border-none focus:ring-1 focus:ring-blue-500 rounded px-2"></td>
-        <td class="p-2 text-center"><input type="number" value="${start}" onchange="updateField('${item.id}','start',this.value)" ${!isAdmin?'disabled':''} class="w-20 p-1 rounded text-center font-bold text-emerald-300 bg-emerald-500/10 border border-emerald-500/30"></td>
-        <td class="p-2 text-center"><input type="number" value="${bought}" onchange="updateField('${item.id}','bought',this.value)" ${!isAdmin?'disabled':''} class="w-20 p-1 rounded text-center font-bold text-sky-300 bg-sky-500/10 border border-sky-500/30"></td>
-        <td class="p-2 text-center"><input type="number" value="${spent}" onchange="updateField('${item.id}','spent',this.value)" ${!isAdmin?'disabled':''} class="w-20 p-1 rounded text-center font-bold text-orange-300 bg-orange-500/10 border border-orange-500/30"></td>
-        <td class="p-2 text-center font-bold ${isLow ? 'text-red-400' : 'text-slate-200'}">${remaining}</td>
-        <td class="p-2 text-center"><input type="number" value="${cost}" onchange="updateField('${item.id}','cost',this.value)" ${!isAdmin?'disabled':''} class="w-24 p-1 rounded text-center bg-slate-700/30 border border-slate-600"></td>
-        <td class="p-2 text-center font-bold text-blue-400 text-xs">${rowValue.toLocaleString()}</td>
-        <td class="p-2 text-center ${isLow ? 'text-red-400' : 'text-emerald-400'} font-bold">${isLow ? TEXTS.statusLow : TEXTS.statusOk}</td>
-        <td class="p-2 text-center">
-          ${isAdmin ? `<button onclick="deleteItem('${item.id}')" class="text-slate-500 hover:text-red-500"><i class="fas fa-trash-alt"></i></button>` : ''}
-        </td>
-      `;
-      body.appendChild(tr);
-    });
-
-    // تحديث البطاقات العلوية
-    if($("totalValue")) $("totalValue").innerText = totals.val.toLocaleString() + " " + SETTINGS.currency;
-    if($("lowStockCount")) $("lowStockCount").innerText = totals.low;
-    if($("totalSpent")) $("totalSpent").innerText = totals.spent;
-    if($("totalItems")) $("totalItems").innerText = inventory.length;
-  }
-
-  // ===== Excel Export =====
-  window.exportToExcel = () => {
-    if (typeof XLSX === "undefined") return alert("مكتبة Excel غير محملة");
-    const data = inventory.map(i => ({
-      [TEXTS.colName]: i.name,
-      [TEXTS.colDesc]: i.desc,
-      [TEXTS.colStart]: i.start,
-      "المتبقي": (Number(i.start) + Number(i.bought)) - Number(i.spent),
-      "القيمة": ((Number(i.start) + Number(i.bought)) - Number(i.spent)) * (Number(i.cost) || 0)
-    }));
-    const ws = XLSX.utils.json_to_sheet(data);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Inventory");
-    XLSX.writeFile(wb, `مخزن_${new Date().toLocaleDateString()}.xlsx`);
-  };
-
-  // ===== Start App =====
-  document.addEventListener("DOMContentLoaded", () => {
-    initApp();
-    refreshAdminUI();
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>مخزن د. ثائر - الاحترافي</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     
-    $("addForm")?.addEventListener("submit", async (e) => {
-      e.preventDefault();
-      if (!window.isAdmin()) return window.openAdmin();
-      
-      const newItem = {
-        name: $("name").value,
-        desc: $("desc").value,
-        start: parseFloat($("start").value) || 0,
-        bought: 0,
-        spent: 0,
-        cost: parseFloat($("cost").value) || 0,
-        order: inventory.length,
-        createdAt: Date.now()
-      };
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;900&display=swap');
+        
+        :root { --p: #3b82f6; --bg: #0f172a; --c: #1e293b; --t: #f1f5f9; }
+        [data-theme="emerald"] { --p: #10b981; --bg: #062019; --c: #064e3b; --t: #ecfdf5; }
+        [data-theme="ocean"] { --p: #0ea5e9; --bg: #082f49; --c: #0c4a6e; --t: #f0f9ff; }
+        [data-theme="sunset"] { --p: #f43f5e; --bg: #450a0a; --c: #7f1d1d; --t: #fff1f2; }
+        [data-theme="royal"] { --p: #8b5cf6; --bg: #1e1b4b; --c: #312e81; --t: #f5f3ff; }
+        [data-theme="onyx"] { --p: #94a3b8; --bg: #000000; --c: #18181b; --t: #ffffff; }
 
-      try {
-        await addDoc(invCol(), newItem);
-        $("addForm").reset();
-      } catch (err) {
-        alert("فشل إضافة المادة");
-      }
-    });
-  });
-</script>
+        body { 
+            background-color: var(--bg); color: var(--t); 
+            font-family: 'Tajawal', sans-serif; transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        .glass { background: rgba(255, 255, 255, 0.03); backdrop-filter: blur(12px); border: 1px solid rgba(255, 255, 255, 0.1); }
+        .card-stat { background: var(--c); border-bottom: 4px solid var(--p); border-radius: 1.5rem; transition: transform 0.3s; }
+        .card-stat:hover { transform: translateY(-5px); }
+        input, select { background: rgba(0,0,0,0.2) !important; border: 1px solid rgba(255,255,255,0.1) !important; color: white !important; }
+        .btn-action { background: var(--p); color: white; border-radius: 0.75rem; font-weight: bold; transition: all 0.2s; }
+        .btn-action:hover { filter: brightness(1.2); transform: scale(1.02); }
+        .table-row:hover { background: rgba(255,255,255,0.02); }
+        .badge { padding: 2px 8px; border-radius: 6px; font-size: 11px; font-weight: 900; }
+    </style>
+</head>
+<body class="min-h-screen pb-12">
+
+    <nav class="glass sticky top-0 z-40 mb-8 border-b border-white/10">
+        <div class="max-w-7xl mx-auto px-4 h-20 flex justify-between items-center">
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 rounded-xl bg-blue-600 flex items-center justify-center text-xl shadow-lg shadow-blue-500/30">
+                    <i class="fas fa-box-open"></i>
+                </div>
+                <div>
+                    <h1 id="txt_headerTitle" class="text-xl font-black tracking-tight uppercase">مخزن د. ثائر</h1>
+                    <span id="syncStatus" class="text-[10px] opacity-50 flex items-center gap-1 uppercase tracking-widest">
+                        <span class="w-1.5 h-1.5 bg-red-500 rounded-full animate-pulse"></span> جاري المزامنة
+                    </span>
+                </div>
+            </div>
+            <div class="flex items-center gap-2">
+                <button onclick="openSettings()" class="w-10 h-10 rounded-full hover:bg-white/10 flex items-center justify-center transition"><i class="fas fa-sliders-h"></i></button>
+                <button onclick="exportToExcel()" class="bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 px-4 py-2 rounded-xl text-sm font-bold hover:bg-emerald-500 hover:text-white transition"><i class="fas fa-file-excel ml-2"></i> إكسل</button>
+                <button id="adminBtn" onclick="toggleAdmin()" class="bg-white text-black px-6 py-2 rounded-xl text-sm font-black shadow-xl hover:bg-slate-200 transition">دخول الأدمن</button>
+            </div>
+        </div>
+    </nav>
+
+    <main class="max-w-7xl mx-auto px-4">
+        <div class="grid grid-cols-2 lg:grid-cols-4 gap-6 mb-10">
+            <div class="card-stat p-6">
+                <p id="txt_statTotalVal" class="text-xs font-bold opacity-50 mb-2">قيمة المخزن</p>
+                <h3 id="stat_totalValue" class="text-2xl font-black italic">0</h3>
+            </div>
+            <div class="card-stat p-6 !border-red-500">
+                <p id="txt_statLowStock" class="text-xs font-bold opacity-50 mb-2">مواد منتهية</p>
+                <h3 id="stat_lowStock" class="text-2xl font-black text-red-400">0</h3>
+            </div>
+            <div class="card-stat p-6">
+                <p id="txt_statItems" class="text-xs font-bold opacity-50 mb-2">إجمالي المواد</p>
+                <h3 id="stat_totalItems" class="text-2xl font-black">0</h3>
+            </div>
+            <div class="card-stat p-6 !border-orange-500">
+                <p id="txt_statSpent" class="text-xs font-bold opacity-50 mb-2">إجمالي المصروف</p>
+                <h3 id="stat_totalSpent" class="text-2xl font-black text-orange-400">0</h3>
+            </div>
+        </div>
+
+        <section id="addContainer" class="glass rounded-3xl p-6 mb-10 opacity-40 grayscale pointer-events-none transition-all duration-500">
+            <div class="flex items-center gap-2 mb-6 text-blue-400">
+                <i class="fas fa-plus-circle text-xl"></i>
+                <h2 id="txt_addTitle" class="font-black">إضافة مادة للسحابة</h2>
+            </div>
+            <form id="addForm" class="grid grid-cols-1 md:grid-cols-5 gap-4">
+                <div class="space-y-1">
+                    <label class="text-[10px] font-bold opacity-50 mr-2">اسم المادة</label>
+                    <input type="text" id="inp_name" class="w-full p-3 rounded-xl focus:ring-2 ring-blue-500" placeholder="مثلاً: حشوة ضوئية" required>
+                </div>
+                <div class="space-y-1">
+                    <label class="text-[10px] font-bold opacity-50 mr-2">الوصف</label>
+                    <input type="text" id="inp_desc" class="w-full p-3 rounded-xl" placeholder="تفاصيل إضافية">
+                </div>
+                <div class="space-y-1">
+                    <label class="text-[10px] font-bold opacity-50 mr-2">البداية</label>
+                    <input type="number" id="inp_start" class="w-full p-3 rounded-xl text-center" placeholder="0">
+                </div>
+                <div class="space-y-1">
+                    <label class="text-[10px] font-bold opacity-50 mr-2">السعر</label>
+                    <input type="number" id="inp_cost" class="w-full p-3 rounded-xl text-center" placeholder="0.00">
+                </div>
+                <div class="flex items-end">
+                    <button type="submit" class="btn-action w-full h-[50px] flex items-center justify-center gap-2 shadow-lg shadow-blue-500/20">
+                        <i class="fas fa-save"></i> <span id="txt_btnAdd">حفظ المادة</span>
+                    </button>
+                </div>
+            </form>
+        </section>
+
+        <div class="glass rounded-[2rem] overflow-hidden shadow-2xl">
+            <div class="overflow-x-auto">
+                <table class="w-full text-right border-separate border-spacing-0">
+                    <thead>
+                        <tr class="bg-white/5 text-[11px] font-black uppercase tracking-widest opacity-60">
+                            <th class="p-5 w-12"></th>
+                            <th class="p-5" id="col_name">المادة</th>
+                            <th class="p-5" id="col_desc">الوصف</th>
+                            <th class="p-5 text-center" id="col_start">بداية</th>
+                            <th class="p-5 text-center" id="col_bought">مشتريات</th>
+                            <th class="p-5 text-center" id="col_spent">مصروف</th>
+                            <th class="p-5 text-center" id="col_rem">المتبقي</th>
+                            <th class="p-5 text-center" id="col_cost">السعر</th>
+                            <th class="p-5 text-center" id="col_val">القيمة</th>
+                            <th class="p-5 text-center" id="col_status">الحالة</th>
+                            <th class="p-5 text-center" id="col_del"></th>
+                        </tr>
+                    </thead>
+                    <tbody id="tableBody" class="divide-y divide-white/5"></tbody>
+                </table>
+            </div>
+        </div>
+    </main>
+
+    <div id="loginModal" class="fixed inset-0 bg-black/95 flex items-center justify-center p-4 z-[100] hidden backdrop-blur-xl">
+        <div class="max-w-md w-full text-center">
+            <div class="w-24 h-24 rounded-3xl bg-gradient-to-tr from-blue-600 to-indigo-600 flex items-center justify-center text-white text-4xl mx-auto mb-6 shadow-2xl shadow-blue-500/40">
+                <i class="fas fa-fingerprint"></i>
+            </div>
+            <h2 class="text-3xl font-black mb-2">نظام الحماية السحابي</h2>
+            <p class="text-slate-400 mb-8">يجب تسجيل دخول الأدمن المعتمد للوصول للصلاحيات</p>
+            <div class="space-y-4">
+                <input type="email" id="loginEmail" class="w-full p-4 rounded-2xl text-center" placeholder="البريد الإلكتروني (admin@clinic.com)">
+                <input type="password" id="loginPass" class="w-full p-4 rounded-2xl text-center" placeholder="كلمة المرور">
+                <button onclick="processLogin()" class="w-full bg-blue-600 p-4 rounded-2xl font-black text-white hover:bg-blue-500 transition shadow-lg">تحقق من الهوية</button>
+                <button onclick="document.getElementById('loginModal').classList.add('hidden')" class="text-xs opacity-50 uppercase tracking-widest font-bold">إلغاء</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="settingsModal" class="fixed inset-0 z-[100] flex justify-end hidden">
+        <div onclick="closeSettings()" class="absolute inset-0 bg-black/60 backdrop-blur-sm"></div>
+        <div class="relative w-full max-w-lg bg-[#0f172a] h-full shadow-2xl p-8 border-l border-white/10 overflow-y-auto">
+            <div class="flex justify-between items-center mb-10">
+                <h2 class="text-2xl font-black">إعدادات النظام</h2>
+                <button onclick="closeSettings()" class="w-10 h-10 rounded-full bg-white/5 flex items-center justify-center"><i class="fas fa-times"></i></button>
+            </div>
+
+            <div class="space-y-10">
+                <section>
+                    <h3 class="text-xs font-black uppercase tracking-widest text-blue-500 mb-4">المظهر</h3>
+                    <div class="grid grid-cols-3 gap-3">
+                        <button onclick="changeTheme('midnight')" class="h-12 rounded-xl bg-[#0f172a] border border-white/10 font-bold text-[10px]">Midnight</button>
+                        <button onclick="changeTheme('emerald')" class="h-12 rounded-xl bg-[#062019] border border-white/10 font-bold text-[10px]">Emerald</button>
+                        <button onclick="changeTheme('ocean')" class="h-12 rounded-xl bg-[#082f49] border border-white/10 font-bold text-[10px]">Ocean</button>
+                        <button onclick="changeTheme('sunset')" class="h-12 rounded-xl bg-[#450a0a] border border-white/10 font-bold text-[10px]">Sunset</button>
+                        <button onclick="changeTheme('royal')" class="h-12 rounded-xl bg-[#1e1b4b] border border-white/10 font-bold text-[10px]">Royal</button>
+                        <button onclick="changeTheme('onyx')" class="h-12 rounded-xl bg-black border border-white/10 font-bold text-[10px]">Onyx</button>
+                    </div>
+                </section>
+
+                <section class="space-y-6">
+                    <h3 class="text-xs font-black uppercase tracking-widest text-blue-500 mb-4">تكوين النظام</h3>
+                    <div>
+                        <label class="text-xs font-bold opacity-50 block mb-2">الحد الأدنى للنقص</label>
+                        <input type="number" id="lowStockInp" class="w-full p-4 rounded-xl">
+                    </div>
+                    <div>
+                        <label class="text-xs font-bold opacity-50 block mb-2">رمز العملة</label>
+                        <input type="text" id="currencyInp" class="w-full p-4 rounded-xl">
+                    </div>
+                </section>
+
+                <section>
+                    <h3 class="text-xs font-black uppercase tracking-widest text-blue-500 mb-4">ترجمة الواجهة</h3>
+                    <div id="textEditor" class="space-y-3"></div>
+                </section>
+
+                <button onclick="saveSettings()" class="w-full bg-emerald-600 p-5 rounded-2xl font-black text-white shadow-xl shadow-emerald-600/20">حفظ جميع الإعدادات</button>
+            </div>
+        </div>
+    </div>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-app.js";
+        import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-auth.js";
+        import { getFirestore, collection, addDoc, updateDoc, deleteDoc, doc, onSnapshot, query, writeBatch } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-firestore.js";
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyC_KaWOZVWJ5WvVhUjiz58dx6d6sWH1EZQ",
+            authDomain: "clinic-storage.firebaseapp.com",
+            projectId: "clinic-storage",
+            storageBucket: "clinic-storage.firebasestorage.app",
+            messagingSenderId: "284636281654",
+            appId: "1:284636281654:web:aa19cd577c4efda5d21197"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+        const auth = getAuth(app);
+        const appId = "clinic-storage";
+        let inventory = [];
+
+        // ===== Configuration & Localization =====
+        const DEFAULT_TEXTS = {
+            headerTitle: "مخزن د. ثائر", btnSettings: "الإعدادات", btnExcel: "إكسل", btnLogin: "دخول الأدمن", btnLogout: "خروج",
+            addTitle: "إضافة مادة للسحابة", btnAdd: "حفظ المادة", statTotalVal: "قيمة المخزن", statLowStock: "مواد منتهية",
+            statItems: "إجمالي المواد", statSpent: "إجمالي المصروف", col_name: "المادة", col_desc: "الوصف", col_start: "بداية",
+            col_bought: "مشتريات", col_spent: "مصروف", col_rem: "المتبقي", col_cost: "السعر", col_val: "القيمة",
+            col_status: "الحالة", statusOk: "متوفر", statusLow: "نقص"
+        };
+
+        let CONFIG = {
+            theme: localStorage.getItem("theme") || "midnight",
+            lowStock: parseInt(localStorage.getItem("lowStock")) || 2,
+            currency: localStorage.getItem("currency") || "د.ع",
+            texts: JSON.parse(localStorage.getItem("uiTexts")) || DEFAULT_TEXTS
+        };
+
+        // ===== UI Controller =====
+        function applyUI() {
+            document.documentElement.setAttribute("data-theme", CONFIG.theme);
+            Object.keys(CONFIG.texts).forEach(key => {
+                const el = document.getElementById(`txt_${key}`) || document.getElementById(key);
+                if (el) el.innerText = CONFIG.texts[key];
+            });
+            document.getElementById("lowStockInp").value = CONFIG.lowStock;
+            document.getElementById("currencyInp").value = CONFIG.currency;
+            document.title = CONFIG.texts.headerTitle;
+        }
+
+        // ===== Authentication (The Real Way) =====
+        window.isAdmin = false;
+        onAuthStateChanged(auth, (user) => {
+            const statusIndicator = document.querySelector("#syncStatus span");
+            if (user) {
+                isAdmin = true;
+                statusIndicator.className = "w-1.5 h-1.5 bg-emerald-500 rounded-full";
+                document.getElementById("adminBtn").innerText = CONFIG.texts.btnLogout;
+                document.getElementById("addContainer").classList.remove("opacity-40", "grayscale", "pointer-events-none");
+            } else {
+                isAdmin = false;
+                statusIndicator.className = "w-1.5 h-1.5 bg-red-500 rounded-full animate-pulse";
+                document.getElementById("adminBtn").innerText = CONFIG.texts.btnLogin;
+                document.getElementById("addContainer").classList.add("opacity-40", "grayscale", "pointer-events-none");
+            }
+            renderTable();
+        });
+
+        window.toggleAdmin = () => {
+            if (isAdmin) signOut(auth);
+            else document.getElementById("loginModal").classList.remove("hidden");
+        };
+
+        window.processLogin = async () => {
+            const email = document.getElementById("loginEmail").value;
+            const pass = document.getElementById("loginPass").value;
+            try {
+                await signInWithEmailAndPassword(auth, email, pass);
+                document.getElementById("loginModal").classList.add("hidden");
+            } catch (e) {
+                alert("بيانات الدخول غير صحيحة، أو ليس لديك صلاحية أدمن.");
+            }
+        };
+
+        // ===== Firestore Realtime Sync =====
+        onSnapshot(query(collection(db, "artifacts", appId, "public", "data", "inventory")), (snap) => {
+            inventory = snap.docs.map(d => ({ id: d.id, ...d.data() })).sort((a,b) => (a.order || 0) - (b.order || 0));
+            renderTable();
+        });
+
+        window.updateField = async (id, field, val) => {
+            if (!isAdmin) return;
+            const isNum = !["name", "desc"].includes(field);
+            await updateDoc(doc(db, "artifacts", appId, "public", "data", "inventory", id), { [field]: isNum ? parseFloat(val) || 0 : val });
+        };
+
+        window.deleteItem = async (id) => {
+            if (isAdmin && confirm("هل تريد حذف هذه المادة من السحابة نهائياً؟")) {
+                await deleteDoc(doc(db, "artifacts", appId, "public", "data", "inventory", id));
+            }
+        };
+
+        function renderTable() {
+            const body = document.getElementById("tableBody");
+            body.innerHTML = "";
+            let totals = { val: 0, low: 0, items: 0, spent: 0 };
+
+            inventory.forEach((item) => {
+                const rem = (Number(item.start)||0) + (Number(item.bought)||0) - (Number(item.spent)||0);
+                const rowVal = rem * (Number(item.cost)||0);
+                const isLow = rem <= CONFIG.lowStock;
+
+                totals.val += rowVal; totals.items++; totals.spent += (Number(item.spent)||0);
+                if (isLow) totals.low++;
+
+                const tr = document.createElement("tr");
+                tr.className = "table-row group transition-all duration-300";
+                tr.setAttribute("data-id", item.id);
+                tr.innerHTML = `
+                    <td class="p-5 text-center"><i class="fas fa-grip-vertical opacity-10 group-hover:opacity-100 handle cursor-grab"></i></td>
+                    <td class="p-5 font-bold"><input onblur="updateField('${item.id}','name',this.value)" value="${item.name||''}" ${!isAdmin?'readonly':''} class="bg-transparent border-none w-full focus:ring-0"></td>
+                    <td class="p-5"><input onblur="updateField('${item.id}','desc',this.value)" value="${item.desc||''}" ${!isAdmin?'readonly':''} class="bg-transparent border-none w-full text-xs opacity-60"></td>
+                    <td class="p-5 text-center font-medium"><input type="number" onchange="updateField('${item.id}','start',this.value)" value="${item.start}" ${!isAdmin?'readonly':''} class="w-16 bg-transparent text-center border-none"></td>
+                    <td class="p-5 text-center font-medium"><input type="number" onchange="updateField('${item.id}','bought',this.value)" value="${item.bought}" ${!isAdmin?'readonly':''} class="w-16 bg-transparent text-center border-none text-blue-400"></td>
+                    <td class="p-5 text-center font-medium"><input type="number" onchange="updateField('${item.id}','spent',this.value)" value="${item.spent}" ${!isAdmin?'readonly':''} class="w-16 bg-transparent text-center border-none text-orange-400"></td>
+                    <td class="p-5 text-center font-black ${isLow?'text-red-500':'text-emerald-500'}">${rem}</td>
+                    <td class="p-5 text-center"><input type="number" onchange="updateField('${item.id}','cost',this.value)" value="${item.cost}" ${!isAdmin?'readonly':''} class="w-20 bg-transparent text-center border-none"></td>
+                    <td class="p-5 text-center font-bold text-xs">${rowVal.toLocaleString()}</td>
+                    <td class="p-5 text-center"><span class="badge ${isLow?'bg-red-500/20 text-red-500':'bg-emerald-500/20 text-emerald-500'}">${isLow ? CONFIG.texts.statusLow : CONFIG.texts.statusOk}</span></td>
+                    <td class="p-5 text-center">${isAdmin ? `<button onclick="deleteItem('${item.id}')" class="text-white/20 hover:text-red-500 transition"><i class="fas fa-trash-alt"></i></button>` : ''}</td>
+                `;
+                body.appendChild(tr);
+            });
+
+            document.getElementById("stat_totalValue").innerText = totals.val.toLocaleString() + " " + CONFIG.currency;
+            document.getElementById("stat_lowStock").innerText = totals.low;
+            document.getElementById("stat_totalItems").innerText = totals.items;
+            document.getElementById("stat_totalSpent").innerText = totals.spent;
+
+            if (isAdmin) initSortable();
+        }
+
+        function initSortable() {
+            Sortable.create(document.getElementById("tableBody"), {
+                handle: ".handle", animation: 200, ghostClass: "bg-blue-500/10",
+                onEnd: async () => {
+                    const batch = writeBatch(db);
+                    document.querySelectorAll("#tableBody tr").forEach((row, idx) => {
+                        batch.update(doc(db, "artifacts", appId, "public", "data", "inventory", row.getAttribute("data-id")), { order: idx });
+                    });
+                    await batch.commit();
+                }
+            });
+        }
+
+        // ===== Helper Functions =====
+        window.openSettings = () => {
+            const container = document.getElementById("textEditor");
+            container.innerHTML = "";
+            Object.keys(CONFIG.texts).forEach(key => {
+                container.innerHTML += `<div class="bg-white/5 p-3 rounded-xl border border-white/5">
+                    <label class="text-[9px] font-black uppercase opacity-40 block mb-1">${key}</label>
+                    <input type="text" data-key="${key}" value="${CONFIG.texts[key]}" class="ui-text-input w-full bg-transparent border-none text-sm font-bold">
+                </div>`;
+            });
+            document.getElementById("settingsModal").classList.remove("hidden");
+        };
+
+        window.closeSettings = () => document.getElementById("settingsModal").classList.add("hidden");
+
+        window.changeTheme = (t) => {
+            CONFIG.theme = t;
+            document.documentElement.setAttribute("data-theme", t);
+        };
+
+        window.saveSettings = () => {
+            CONFIG.lowStock = parseInt(document.getElementById("lowStockInp").value);
+            CONFIG.currency = document.getElementById("currencyInp").value;
+            document.querySelectorAll(".ui-text-input").forEach(inp => CONFIG.texts[inp.dataset.key] = inp.value);
+
+            localStorage.setItem("theme", CONFIG.theme);
+            localStorage.setItem("lowStock", CONFIG.lowStock);
+            localStorage.setItem("currency", CONFIG.currency);
+            localStorage.setItem("uiTexts", JSON.stringify(CONFIG.texts));
+
+            applyUI(); renderTable(); closeSettings();
+        };
+
+        document.getElementById("addForm").onsubmit = async (e) => {
+            e.preventDefault();
+            if (!isAdmin) return;
+            await addDoc(collection(db, "artifacts", appId, "public", "data", "inventory"), {
+                name: document.getElementById("inp_name").value,
+                desc: document.getElementById("inp_desc").value,
+                start: parseFloat(document.getElementById("inp_start").value) || 0,
+                bought: 0, spent: 0,
+                cost: parseFloat(document.getElementById("inp_cost").value) || 0,
+                order: inventory.length
+            });
+            e.target.reset();
+        };
+
+        window.exportToExcel = () => {
+            const data = inventory.map(i => ({
+                "المادة": i.name, "المتبقي": (Number(i.start)||0) + (Number(i.bought)||0) - (Number(i.spent)||0),
+                "السعر": i.cost, "الإجمالي": ((Number(i.start)||0) + (Number(i.bought)||0) - (Number(i.spent)||0)) * (Number(i.cost)||0)
+            }));
+            const ws = XLSX.utils.json_to_sheet(data);
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, "Inventory");
+            XLSX.writeFile(wb, `مخزن_${new Date().toLocaleDateString()}.xlsx`);
+        };
+
+        applyUI();
+    </script>
+</body>
+</html>
