@@ -3,189 +3,152 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>مخزن د. ثائر - الاحترافي</title>
+    <title>مخزن د. ثائر - الإصدار الملون</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;700;900&display=swap" rel="stylesheet">
     
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;900&display=swap');
-        
-        :root { --p: #3b82f6; --bg: #0f172a; --c: #1e293b; --t: #f1f5f9; }
-        [data-theme="emerald"] { --p: #10b981; --bg: #062019; --c: #064e3b; --t: #ecfdf5; }
-        [data-theme="ocean"] { --p: #0ea5e9; --bg: #082f49; --c: #0c4a6e; --t: #f0f9ff; }
-        [data-theme="sunset"] { --p: #f43f5e; --bg: #450a0a; --c: #7f1d1d; --t: #fff1f2; }
-        [data-theme="royal"] { --p: #8b5cf6; --bg: #1e1b4b; --c: #312e81; --t: #f5f3ff; }
-        [data-theme="onyx"] { --p: #94a3b8; --bg: #000000; --c: #18181b; --t: #ffffff; }
-
-        body { 
-            background-color: var(--bg); color: var(--t); 
-            font-family: 'Tajawal', sans-serif; transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+        :root {
+            --bg: #0f172a; --card: #1e293b; --primary: #3b82f6; --text: #f1f5f9;
+            --grad: linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%);
         }
-        .glass { background: rgba(255, 255, 255, 0.03); backdrop-filter: blur(12px); border: 1px solid rgba(255, 255, 255, 0.1); }
-        .card-stat { background: var(--c); border-bottom: 4px solid var(--p); border-radius: 1.5rem; transition: transform 0.3s; }
-        .card-stat:hover { transform: translateY(-5px); }
-        input, select { background: rgba(0,0,0,0.2) !important; border: 1px solid rgba(255,255,255,0.1) !important; color: white !important; }
-        .btn-action { background: var(--p); color: white; border-radius: 0.75rem; font-weight: bold; transition: all 0.2s; }
-        .btn-action:hover { filter: brightness(1.2); transform: scale(1.02); }
-        .table-row:hover { background: rgba(255,255,255,0.02); }
-        .badge { padding: 2px 8px; border-radius: 6px; font-size: 11px; font-weight: 900; }
+        [data-theme="neon"] {
+            --bg: #0a0a0c; --card: #16161e; --primary: #ff007a; --text: #ffffff;
+            --grad: linear-gradient(135deg, #ff007a 0%, #7000ff 100%);
+        }
+        [data-theme="forest"] {
+            --bg: #052e16; --card: #064e3b; --primary: #10b981; --text: #ecfdf5;
+            --grad: linear-gradient(135deg, #10b981 0%, #f59e0b 100%);
+        }
+        [data-theme="royal"] {
+            --bg: #1a1a1a; --card: #2d2d2d; --primary: #d4af37; --text: #ffffff;
+            --grad: linear-gradient(135deg, #d4af37 0%, #92400e 100%);
+        }
+
+        body { background-color: var(--bg); color: var(--text); font-family: 'Cairo', sans-serif; transition: 0.3s; }
+        .glass-card { background: var(--card); border: 1px solid rgba(255,255,255,0.05); border-radius: 1.25rem; }
+        .btn-grad { background: var(--grad); color: white; font-weight: 800; transition: 0.3s; border-radius: 0.75rem; }
+        .btn-grad:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0,0,0,0.3); }
+        
+        /* تلوين الأعمدة المخصص */
+        .col-bought { background-color: rgba(16, 185, 129, 0.05); } /* خلفية خضراء خفيفة */
+        .col-spent { background-color: rgba(244, 63, 94, 0.05); }   /* خلفية حمراء خفيفة */
+        .col-rem { background-color: rgba(255, 255, 255, 0.05); }   /* خلفية بيضاء خفيفة */
+
+        input { background: rgba(0,0,0,0.2) !important; border: 1px solid rgba(255,255,255,0.1) !important; color: white !important; border-radius: 0.5rem; text-align: center; }
+        input:focus { outline: 2px solid var(--primary); }
+        
+        th { font-size: 11px; color: var(--primary); padding: 1rem !important; }
     </style>
 </head>
-<body class="min-h-screen pb-12">
+<body class="min-h-screen p-4 md:p-6">
 
-    <nav class="glass sticky top-0 z-40 mb-8 border-b border-white/10">
-        <div class="max-w-7xl mx-auto px-4 h-20 flex justify-between items-center">
-            <div class="flex items-center gap-3">
-                <div class="w-10 h-10 rounded-xl bg-blue-600 flex items-center justify-center text-xl shadow-lg shadow-blue-500/30">
-                    <i class="fas fa-box-open"></i>
-                </div>
-                <div>
-                    <h1 id="txt_headerTitle" class="text-xl font-black tracking-tight uppercase">مخزن د. ثائر</h1>
-                    <span id="syncStatus" class="text-[10px] opacity-50 flex items-center gap-1 uppercase tracking-widest">
-                        <span class="w-1.5 h-1.5 bg-red-500 rounded-full animate-pulse"></span> جاري المزامنة
-                    </span>
-                </div>
+    <header class="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center mb-8 gap-4 glass-card p-6">
+        <div class="flex items-center gap-4">
+            <div class="w-12 h-12 btn-grad flex items-center justify-center text-xl rounded-xl shadow-lg">
+                <i class="fas fa-box"></i>
             </div>
-            <div class="flex items-center gap-2">
-                <button onclick="openSettings()" class="w-10 h-10 rounded-full hover:bg-white/10 flex items-center justify-center transition"><i class="fas fa-sliders-h"></i></button>
-                <button onclick="exportToExcel()" class="bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 px-4 py-2 rounded-xl text-sm font-bold hover:bg-emerald-500 hover:text-white transition"><i class="fas fa-file-excel ml-2"></i> إكسل</button>
-                <button id="adminBtn" onclick="toggleAdmin()" class="bg-white text-black px-6 py-2 rounded-xl text-sm font-black shadow-xl hover:bg-slate-200 transition">دخول الأدمن</button>
+            <div>
+                <h1 id="txt_headerTitle" class="text-2xl font-black">مخزن د. ثائر</h1>
+                <div id="syncStatus" class="text-[10px] opacity-60">جاري الاتصال بالسحابة...</div>
             </div>
         </div>
-    </nav>
-
-    <main class="max-w-7xl mx-auto px-4">
-        <div class="grid grid-cols-2 lg:grid-cols-4 gap-6 mb-10">
-            <div class="card-stat p-6">
-                <p id="txt_statTotalVal" class="text-xs font-bold opacity-50 mb-2">قيمة المخزن</p>
-                <h3 id="stat_totalValue" class="text-2xl font-black italic">0</h3>
-            </div>
-            <div class="card-stat p-6 !border-red-500">
-                <p id="txt_statLowStock" class="text-xs font-bold opacity-50 mb-2">مواد منتهية</p>
-                <h3 id="stat_lowStock" class="text-2xl font-black text-red-400">0</h3>
-            </div>
-            <div class="card-stat p-6">
-                <p id="txt_statItems" class="text-xs font-bold opacity-50 mb-2">إجمالي المواد</p>
-                <h3 id="stat_totalItems" class="text-2xl font-black">0</h3>
-            </div>
-            <div class="card-stat p-6 !border-orange-500">
-                <p id="txt_statSpent" class="text-xs font-bold opacity-50 mb-2">إجمالي المصروف</p>
-                <h3 id="stat_totalSpent" class="text-2xl font-black text-orange-400">0</h3>
-            </div>
+        <div class="flex gap-2">
+            <button onclick="openSettings()" class="p-3 glass-card hover:bg-white/10"><i class="fas fa-cog"></i></button>
+            <button onclick="exportToExcel()" class="bg-emerald-600/20 text-emerald-400 px-4 py-2 rounded-xl font-bold border border-emerald-600/30">إكسل</button>
+            <button id="adminBtn" onclick="toggleAdmin()" class="btn-grad px-6 py-2">دخول الأدمن</button>
         </div>
+    </header>
 
-        <section id="addContainer" class="glass rounded-3xl p-6 mb-10 opacity-40 grayscale pointer-events-none transition-all duration-500">
-            <div class="flex items-center gap-2 mb-6 text-blue-400">
-                <i class="fas fa-plus-circle text-xl"></i>
-                <h2 id="txt_addTitle" class="font-black">إضافة مادة للسحابة</h2>
-            </div>
-            <form id="addForm" class="grid grid-cols-1 md:grid-cols-5 gap-4">
-                <div class="space-y-1">
-                    <label class="text-[10px] font-bold opacity-50 mr-2">اسم المادة</label>
-                    <input type="text" id="inp_name" class="w-full p-3 rounded-xl focus:ring-2 ring-blue-500" placeholder="مثلاً: حشوة ضوئية" required>
-                </div>
-                <div class="space-y-1">
-                    <label class="text-[10px] font-bold opacity-50 mr-2">الوصف</label>
-                    <input type="text" id="inp_desc" class="w-full p-3 rounded-xl" placeholder="تفاصيل إضافية">
-                </div>
-                <div class="space-y-1">
-                    <label class="text-[10px] font-bold opacity-50 mr-2">البداية</label>
-                    <input type="number" id="inp_start" class="w-full p-3 rounded-xl text-center" placeholder="0">
-                </div>
-                <div class="space-y-1">
-                    <label class="text-[10px] font-bold opacity-50 mr-2">السعر</label>
-                    <input type="number" id="inp_cost" class="w-full p-3 rounded-xl text-center" placeholder="0.00">
-                </div>
-                <div class="flex items-end">
-                    <button type="submit" class="btn-action w-full h-[50px] flex items-center justify-center gap-2 shadow-lg shadow-blue-500/20">
-                        <i class="fas fa-save"></i> <span id="txt_btnAdd">حفظ المادة</span>
-                    </button>
-                </div>
-            </form>
-        </section>
-
-        <div class="glass rounded-[2rem] overflow-hidden shadow-2xl">
-            <div class="overflow-x-auto">
-                <table class="w-full text-right border-separate border-spacing-0">
-                    <thead>
-                        <tr class="bg-white/5 text-[11px] font-black uppercase tracking-widest opacity-60">
-                            <th class="p-5 w-12"></th>
-                            <th class="p-5" id="col_name">المادة</th>
-                            <th class="p-5" id="col_desc">الوصف</th>
-                            <th class="p-5 text-center" id="col_start">بداية</th>
-                            <th class="p-5 text-center" id="col_bought">مشتريات</th>
-                            <th class="p-5 text-center" id="col_spent">مصروف</th>
-                            <th class="p-5 text-center" id="col_rem">المتبقي</th>
-                            <th class="p-5 text-center" id="col_cost">السعر</th>
-                            <th class="p-5 text-center" id="col_val">القيمة</th>
-                            <th class="p-5 text-center" id="col_status">الحالة</th>
-                            <th class="p-5 text-center" id="col_del"></th>
-                        </tr>
-                    </thead>
-                    <tbody id="tableBody" class="divide-y divide-white/5"></tbody>
-                </table>
-            </div>
+    <div class="max-w-7xl mx-auto grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+        <div class="glass-card p-5 border-r-4 border-blue-500">
+            <div class="text-xs opacity-50 mb-1">إجمالي القيمة</div>
+            <div id="stat_totalValue" class="text-xl font-black">0</div>
         </div>
-    </main>
+        <div class="glass-card p-5 border-r-4 border-rose-500">
+            <div class="text-xs opacity-50 mb-1">النواقص</div>
+            <div id="stat_lowStock" class="text-xl font-black text-rose-500">0</div>
+        </div>
+        <div class="glass-card p-5 border-r-4 border-emerald-500">
+            <div class="text-xs opacity-50 mb-1">المواد</div>
+            <div id="stat_totalItems" class="text-xl font-black">0</div>
+        </div>
+        <div class="glass-card p-5 border-r-4 border-orange-500">
+            <div class="text-xs opacity-50 mb-1">المصروف</div>
+            <div id="stat_totalSpent" class="text-xl font-black text-orange-500">0</div>
+        </div>
+    </div>
 
-    <div id="loginModal" class="fixed inset-0 bg-black/95 flex items-center justify-center p-4 z-[100] hidden backdrop-blur-xl">
-        <div class="max-w-md w-full text-center">
-            <div class="w-24 h-24 rounded-3xl bg-gradient-to-tr from-blue-600 to-indigo-600 flex items-center justify-center text-white text-4xl mx-auto mb-6 shadow-2xl shadow-blue-500/40">
-                <i class="fas fa-fingerprint"></i>
-            </div>
-            <h2 class="text-3xl font-black mb-2">نظام الحماية السحابي</h2>
-            <p class="text-slate-400 mb-8">يجب تسجيل دخول الأدمن المعتمد للوصول للصلاحيات</p>
+    <section id="addContainer" class="max-w-7xl mx-auto glass-card p-6 mb-8 hidden">
+        <h2 class="font-bold mb-4 flex items-center gap-2"><i class="fas fa-plus-circle text-blue-500"></i> إضافة مادة جديدة</h2>
+        <form id="addForm" class="grid grid-cols-1 md:grid-cols-5 gap-4">
+            <input type="text" id="inp_name" class="p-3" placeholder="اسم المادة" required>
+            <input type="text" id="inp_desc" class="p-3" placeholder="وصف قصير">
+            <input type="number" id="inp_start" class="p-3" placeholder="الكمية">
+            <input type="number" id="inp_cost" class="p-3" placeholder="السعر">
+            <button type="submit" class="btn-grad py-3">إضافة للسحابة</button>
+        </form>
+    </section>
+
+    <div class="max-w-7xl mx-auto glass-card overflow-hidden">
+        <div class="overflow-x-auto">
+            <table class="w-full text-right border-collapse">
+                <thead>
+                    <tr class="bg-black/20 text-xs">
+                        <th class="w-10"></th>
+                        <th id="col_name">المادة</th>
+                        <th id="col_desc">الوصف</th>
+                        <th class="text-center">بداية</th>
+                        <th class="text-center bg-emerald-500/10">مشتريات (+)</th>
+                        <th class="text-center bg-rose-500/10">مصروف (-)</th>
+                        <th class="text-center bg-white/10">المتبقي</th>
+                        <th class="text-center">السعر</th>
+                        <th class="text-center">القيمة</th>
+                        <th class="text-center">الحالة</th>
+                        <th class="w-10"></th>
+                    </tr>
+                </thead>
+                <tbody id="tableBody" class="divide-y divide-white/5">
+                    </tbody>
+            </table>
+        </div>
+    </div>
+
+    <div id="loginModal" class="fixed inset-0 bg-black/90 backdrop-blur-md z-50 hidden flex items-center justify-center p-4">
+        <div class="glass-card p-8 w-full max-w-sm text-center">
+            <i class="fas fa-user-shield text-4xl text-blue-500 mb-4"></i>
+            <h2 class="text-xl font-black mb-6">تسجيل دخول الأدمن</h2>
             <div class="space-y-4">
-                <input type="email" id="loginEmail" class="w-full p-4 rounded-2xl text-center" placeholder="البريد الإلكتروني (admin@clinic.com)">
-                <input type="password" id="loginPass" class="w-full p-4 rounded-2xl text-center" placeholder="كلمة المرور">
-                <button onclick="processLogin()" class="w-full bg-blue-600 p-4 rounded-2xl font-black text-white hover:bg-blue-500 transition shadow-lg">تحقق من الهوية</button>
-                <button onclick="document.getElementById('loginModal').classList.add('hidden')" class="text-xs opacity-50 uppercase tracking-widest font-bold">إلغاء</button>
+                <input type="email" id="loginEmail" class="w-full p-3" placeholder="الإيميل (admin@clinic.com)">
+                <input type="password" id="loginPass" class="w-full p-3" placeholder="كلمة المرور">
+                <button onclick="processLogin()" class="btn-grad w-full py-3">دخول</button>
+                <button onclick="document.getElementById('loginModal').classList.add('hidden')" class="text-xs opacity-50">إلغاء</button>
             </div>
         </div>
     </div>
 
-    <div id="settingsModal" class="fixed inset-0 z-[100] flex justify-end hidden">
-        <div onclick="closeSettings()" class="absolute inset-0 bg-black/60 backdrop-blur-sm"></div>
-        <div class="relative w-full max-w-lg bg-[#0f172a] h-full shadow-2xl p-8 border-l border-white/10 overflow-y-auto">
-            <div class="flex justify-between items-center mb-10">
-                <h2 class="text-2xl font-black">إعدادات النظام</h2>
-                <button onclick="closeSettings()" class="w-10 h-10 rounded-full bg-white/5 flex items-center justify-center"><i class="fas fa-times"></i></button>
+    <div id="settingsModal" class="fixed inset-0 bg-black/80 backdrop-blur-md z-50 hidden flex items-center justify-center p-4">
+        <div class="glass-card p-8 w-full max-w-2xl overflow-y-auto max-h-[90vh]">
+            <h2 class="text-xl font-black mb-6">الإعدادات والثيمات</h2>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+                <div>
+                    <h3 class="text-sm font-bold text-blue-400 mb-4">اختر الثيم</h3>
+                    <div class="grid grid-cols-2 gap-2">
+                        <button onclick="changeTheme('default')" class="p-3 bg-slate-800 rounded-lg text-xs font-bold border border-blue-500">Default Blue</button>
+                        <button onclick="changeTheme('neon')" class="p-3 bg-zinc-900 rounded-lg text-xs font-bold border border-pink-500">Neon Pink</button>
+                        <button onclick="changeTheme('forest')" class="p-3 bg-emerald-900 rounded-lg text-xs font-bold border border-amber-500">Forest Gold</button>
+                        <button onclick="changeTheme('royal')" class="p-3 bg-stone-800 rounded-lg text-xs font-bold border border-yellow-600">Royal Stone</button>
+                    </div>
+                </div>
+                <div>
+                    <h3 class="text-sm font-bold text-blue-400 mb-4">تخصيص العناوين</h3>
+                    <div id="textEditor" class="space-y-2"></div>
+                </div>
             </div>
-
-            <div class="space-y-10">
-                <section>
-                    <h3 class="text-xs font-black uppercase tracking-widest text-blue-500 mb-4">المظهر</h3>
-                    <div class="grid grid-cols-3 gap-3">
-                        <button onclick="changeTheme('midnight')" class="h-12 rounded-xl bg-[#0f172a] border border-white/10 font-bold text-[10px]">Midnight</button>
-                        <button onclick="changeTheme('emerald')" class="h-12 rounded-xl bg-[#062019] border border-white/10 font-bold text-[10px]">Emerald</button>
-                        <button onclick="changeTheme('ocean')" class="h-12 rounded-xl bg-[#082f49] border border-white/10 font-bold text-[10px]">Ocean</button>
-                        <button onclick="changeTheme('sunset')" class="h-12 rounded-xl bg-[#450a0a] border border-white/10 font-bold text-[10px]">Sunset</button>
-                        <button onclick="changeTheme('royal')" class="h-12 rounded-xl bg-[#1e1b4b] border border-white/10 font-bold text-[10px]">Royal</button>
-                        <button onclick="changeTheme('onyx')" class="h-12 rounded-xl bg-black border border-white/10 font-bold text-[10px]">Onyx</button>
-                    </div>
-                </section>
-
-                <section class="space-y-6">
-                    <h3 class="text-xs font-black uppercase tracking-widest text-blue-500 mb-4">تكوين النظام</h3>
-                    <div>
-                        <label class="text-xs font-bold opacity-50 block mb-2">الحد الأدنى للنقص</label>
-                        <input type="number" id="lowStockInp" class="w-full p-4 rounded-xl">
-                    </div>
-                    <div>
-                        <label class="text-xs font-bold opacity-50 block mb-2">رمز العملة</label>
-                        <input type="text" id="currencyInp" class="w-full p-4 rounded-xl">
-                    </div>
-                </section>
-
-                <section>
-                    <h3 class="text-xs font-black uppercase tracking-widest text-blue-500 mb-4">ترجمة الواجهة</h3>
-                    <div id="textEditor" class="space-y-3"></div>
-                </section>
-
-                <button onclick="saveSettings()" class="w-full bg-emerald-600 p-5 rounded-2xl font-black text-white shadow-xl shadow-emerald-600/20">حفظ جميع الإعدادات</button>
-            </div>
+            <button onclick="saveSettings()" class="btn-grad w-full py-3 mt-8">حفظ الإعدادات</button>
         </div>
     </div>
 
@@ -194,6 +157,7 @@
         import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-auth.js";
         import { getFirestore, collection, addDoc, updateDoc, deleteDoc, doc, onSnapshot, query, writeBatch } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-firestore.js";
 
+        // إعدادات الفايربيس (نفس الإعدادات السابقة)
         const firebaseConfig = {
             apiKey: "AIzaSyC_KaWOZVWJ5WvVhUjiz58dx6d6sWH1EZQ",
             authDomain: "clinic-storage.firebaseapp.com",
@@ -209,56 +173,40 @@
         const appId = "clinic-storage";
         let inventory = [];
 
-        // ===== Configuration & Localization =====
-        const DEFAULT_TEXTS = {
-            headerTitle: "مخزن د. ثائر", btnSettings: "الإعدادات", btnExcel: "إكسل", btnLogin: "دخول الأدمن", btnLogout: "خروج",
-            addTitle: "إضافة مادة للسحابة", btnAdd: "حفظ المادة", statTotalVal: "قيمة المخزن", statLowStock: "مواد منتهية",
-            statItems: "إجمالي المواد", statSpent: "إجمالي المصروف", col_name: "المادة", col_desc: "الوصف", col_start: "بداية",
-            col_bought: "مشتريات", col_spent: "مصروف", col_rem: "المتبقي", col_cost: "السعر", col_val: "القيمة",
-            col_status: "الحالة", statusOk: "متوفر", statusLow: "نقص"
-        };
-
+        // إعدادات واجهة المستخدم
         let CONFIG = {
-            theme: localStorage.getItem("theme") || "midnight",
-            lowStock: parseInt(localStorage.getItem("lowStock")) || 2,
-            currency: localStorage.getItem("currency") || "د.ع",
-            texts: JSON.parse(localStorage.getItem("uiTexts")) || DEFAULT_TEXTS
+            theme: localStorage.getItem("theme") || "default",
+            lowStock: 2,
+            currency: "د.ع",
+            texts: JSON.parse(localStorage.getItem("uiTexts")) || {
+                headerTitle: "مخزن د. ثائر", col_name: "المادة", col_desc: "الوصف", statusOk: "متوفر", statusLow: "نقص"
+            }
         };
 
-        // ===== UI Controller =====
         function applyUI() {
             document.documentElement.setAttribute("data-theme", CONFIG.theme);
-            Object.keys(CONFIG.texts).forEach(key => {
-                const el = document.getElementById(`txt_${key}`) || document.getElementById(key);
-                if (el) el.innerText = CONFIG.texts[key];
-            });
-            document.getElementById("lowStockInp").value = CONFIG.lowStock;
-            document.getElementById("currencyInp").value = CONFIG.currency;
-            document.title = CONFIG.texts.headerTitle;
+            document.getElementById("txt_headerTitle").innerText = CONFIG.texts.headerTitle;
         }
 
-        // ===== Authentication (The Real Way) =====
+        // تسجيل الدخول والأمان
         window.isAdmin = false;
         onAuthStateChanged(auth, (user) => {
-            const statusIndicator = document.querySelector("#syncStatus span");
+            isAdmin = !!user;
+            const sync = document.getElementById("syncStatus");
+            const addSec = document.getElementById("addContainer");
             if (user) {
-                isAdmin = true;
-                statusIndicator.className = "w-1.5 h-1.5 bg-emerald-500 rounded-full";
-                document.getElementById("adminBtn").innerText = CONFIG.texts.btnLogout;
-                document.getElementById("addContainer").classList.remove("opacity-40", "grayscale", "pointer-events-none");
+                sync.innerHTML = '<span class="text-emerald-400 font-bold">● متصل (أدمن)</span>';
+                document.getElementById("adminBtn").innerText = "خروج";
+                addSec.classList.remove("hidden");
             } else {
-                isAdmin = false;
-                statusIndicator.className = "w-1.5 h-1.5 bg-red-500 rounded-full animate-pulse";
-                document.getElementById("adminBtn").innerText = CONFIG.texts.btnLogin;
-                document.getElementById("addContainer").classList.add("opacity-40", "grayscale", "pointer-events-none");
+                sync.innerHTML = '<span class="text-rose-500 font-bold">● وضع القراءة فقط</span>';
+                document.getElementById("adminBtn").innerText = "دخول الأدمن";
+                addSec.classList.add("hidden");
             }
             renderTable();
         });
 
-        window.toggleAdmin = () => {
-            if (isAdmin) signOut(auth);
-            else document.getElementById("loginModal").classList.remove("hidden");
-        };
+        window.toggleAdmin = () => isAdmin ? signOut(auth) : document.getElementById("loginModal").classList.remove("hidden");
 
         window.processLogin = async () => {
             const email = document.getElementById("loginEmail").value;
@@ -266,16 +214,30 @@
             try {
                 await signInWithEmailAndPassword(auth, email, pass);
                 document.getElementById("loginModal").classList.add("hidden");
-            } catch (e) {
-                alert("بيانات الدخول غير صحيحة، أو ليس لديك صلاحية أدمن.");
-            }
+            } catch (e) { alert("فشل الدخول! تأكد من الإيميل والباسورد"); }
         };
 
-        // ===== Firestore Realtime Sync =====
+        // العمليات على البيانات
         onSnapshot(query(collection(db, "artifacts", appId, "public", "data", "inventory")), (snap) => {
             inventory = snap.docs.map(d => ({ id: d.id, ...d.data() })).sort((a,b) => (a.order || 0) - (b.order || 0));
             renderTable();
         });
+
+        document.getElementById("addForm").onsubmit = async (e) => {
+            e.preventDefault();
+            if (!isAdmin) return;
+            try {
+                await addDoc(collection(db, "artifacts", appId, "public", "data", "inventory"), {
+                    name: document.getElementById("inp_name").value,
+                    desc: document.getElementById("inp_desc").value,
+                    start: parseFloat(document.getElementById("inp_start").value) || 0,
+                    bought: 0, spent: 0,
+                    cost: parseFloat(document.getElementById("inp_cost").value) || 0,
+                    order: inventory.length
+                });
+                e.target.reset();
+            } catch (e) { alert("خطأ في الإضافة للسحابة"); }
+        };
 
         window.updateField = async (id, field, val) => {
             if (!isAdmin) return;
@@ -284,9 +246,7 @@
         };
 
         window.deleteItem = async (id) => {
-            if (isAdmin && confirm("هل تريد حذف هذه المادة من السحابة نهائياً؟")) {
-                await deleteDoc(doc(db, "artifacts", appId, "public", "data", "inventory", id));
-            }
+            if (isAdmin && confirm("حذف المادة نهائياً؟")) await deleteDoc(doc(db, "artifacts", appId, "public", "data", "inventory", id));
         };
 
         function renderTable() {
@@ -298,25 +258,28 @@
                 const rem = (Number(item.start)||0) + (Number(item.bought)||0) - (Number(item.spent)||0);
                 const rowVal = rem * (Number(item.cost)||0);
                 const isLow = rem <= CONFIG.lowStock;
-
                 totals.val += rowVal; totals.items++; totals.spent += (Number(item.spent)||0);
                 if (isLow) totals.low++;
 
                 const tr = document.createElement("tr");
-                tr.className = "table-row group transition-all duration-300";
+                tr.className = "hover:bg-white/5 transition group";
                 tr.setAttribute("data-id", item.id);
                 tr.innerHTML = `
-                    <td class="p-5 text-center"><i class="fas fa-grip-vertical opacity-10 group-hover:opacity-100 handle cursor-grab"></i></td>
-                    <td class="p-5 font-bold"><input onblur="updateField('${item.id}','name',this.value)" value="${item.name||''}" ${!isAdmin?'readonly':''} class="bg-transparent border-none w-full focus:ring-0"></td>
-                    <td class="p-5"><input onblur="updateField('${item.id}','desc',this.value)" value="${item.desc||''}" ${!isAdmin?'readonly':''} class="bg-transparent border-none w-full text-xs opacity-60"></td>
-                    <td class="p-5 text-center font-medium"><input type="number" onchange="updateField('${item.id}','start',this.value)" value="${item.start}" ${!isAdmin?'readonly':''} class="w-16 bg-transparent text-center border-none"></td>
-                    <td class="p-5 text-center font-medium"><input type="number" onchange="updateField('${item.id}','bought',this.value)" value="${item.bought}" ${!isAdmin?'readonly':''} class="w-16 bg-transparent text-center border-none text-blue-400"></td>
-                    <td class="p-5 text-center font-medium"><input type="number" onchange="updateField('${item.id}','spent',this.value)" value="${item.spent}" ${!isAdmin?'readonly':''} class="w-16 bg-transparent text-center border-none text-orange-400"></td>
-                    <td class="p-5 text-center font-black ${isLow?'text-red-500':'text-emerald-500'}">${rem}</td>
-                    <td class="p-5 text-center"><input type="number" onchange="updateField('${item.id}','cost',this.value)" value="${item.cost}" ${!isAdmin?'readonly':''} class="w-20 bg-transparent text-center border-none"></td>
-                    <td class="p-5 text-center font-bold text-xs">${rowVal.toLocaleString()}</td>
-                    <td class="p-5 text-center"><span class="badge ${isLow?'bg-red-500/20 text-red-500':'bg-emerald-500/20 text-emerald-500'}">${isLow ? CONFIG.texts.statusLow : CONFIG.texts.statusOk}</span></td>
-                    <td class="p-5 text-center">${isAdmin ? `<button onclick="deleteItem('${item.id}')" class="text-white/20 hover:text-red-500 transition"><i class="fas fa-trash-alt"></i></button>` : ''}</td>
+                    <td class="p-4 text-center"><i class="fas fa-grip-vertical opacity-10 group-hover:opacity-100 handle cursor-grab"></i></td>
+                    <td class="p-4 font-bold"><input onblur="updateField('${item.id}','name',this.value)" value="${item.name||''}" ${!isAdmin?'readonly':''} class="bg-transparent border-none w-full text-right"></td>
+                    <td class="p-4"><input onblur="updateField('${item.id}','desc',this.value)" value="${item.desc||''}" ${!isAdmin?'readonly':''} class="bg-transparent border-none w-full text-xs opacity-50 text-right"></td>
+                    <td class="p-4 text-center"><input type="number" onchange="updateField('${item.id}','start',this.value)" value="${item.start}" ${!isAdmin?'readonly':''} class="w-16 bg-transparent"></td>
+                    
+                    <td class="p-4 text-center col-bought"><input type="number" onchange="updateField('${item.id}','bought',this.value)" value="${item.bought}" ${!isAdmin?'readonly':''} class="w-16 bg-emerald-500/20 text-emerald-400 font-bold border-emerald-500/30"></td>
+                    
+                    <td class="p-4 text-center col-spent"><input type="number" onchange="updateField('${item.id}','spent',this.value)" value="${item.spent}" ${!isAdmin?'readonly':''} class="w-16 bg-rose-500/20 text-rose-400 font-bold border-rose-500/30"></td>
+                    
+                    <td class="p-4 text-center col-rem font-black text-white text-lg">${rem}</td>
+                    
+                    <td class="p-4 text-center"><input type="number" onchange="updateField('${item.id}','cost',this.value)" value="${item.cost}" ${!isAdmin?'readonly':''} class="w-20 bg-transparent"></td>
+                    <td class="p-4 text-center font-bold text-xs opacity-70">${rowVal.toLocaleString()}</td>
+                    <td class="p-4 text-center"><span class="px-2 py-1 rounded-md text-[10px] font-black ${isLow?'bg-rose-500 text-white animate-pulse':'bg-emerald-500/20 text-emerald-400'}">${isLow ? CONFIG.texts.statusLow : CONFIG.texts.statusOk}</span></td>
+                    <td class="p-4 text-center">${isAdmin ? `<button onclick="deleteItem('${item.id}')" class="text-rose-500/30 hover:text-rose-500"><i class="fas fa-trash"></i></button>` : ''}</td>
                 `;
                 body.appendChild(tr);
             });
@@ -325,13 +288,12 @@
             document.getElementById("stat_lowStock").innerText = totals.low;
             document.getElementById("stat_totalItems").innerText = totals.items;
             document.getElementById("stat_totalSpent").innerText = totals.spent;
-
             if (isAdmin) initSortable();
         }
 
         function initSortable() {
             Sortable.create(document.getElementById("tableBody"), {
-                handle: ".handle", animation: 200, ghostClass: "bg-blue-500/10",
+                handle: ".handle", animation: 150,
                 onEnd: async () => {
                     const batch = writeBatch(db);
                     document.querySelectorAll("#tableBody tr").forEach((row, idx) => {
@@ -342,62 +304,29 @@
             });
         }
 
-        // ===== Helper Functions =====
+        // الإعدادات
         window.openSettings = () => {
-            const container = document.getElementById("textEditor");
-            container.innerHTML = "";
-            Object.keys(CONFIG.texts).forEach(key => {
-                container.innerHTML += `<div class="bg-white/5 p-3 rounded-xl border border-white/5">
-                    <label class="text-[9px] font-black uppercase opacity-40 block mb-1">${key}</label>
-                    <input type="text" data-key="${key}" value="${CONFIG.texts[key]}" class="ui-text-input w-full bg-transparent border-none text-sm font-bold">
-                </div>`;
+            const ed = document.getElementById("textEditor"); ed.innerHTML = "";
+            Object.keys(CONFIG.texts).forEach(k => {
+                ed.innerHTML += `<div class="p-2 bg-white/5 rounded-lg"><label class="text-[9px] opacity-40 uppercase">${k}</label>
+                <input type="text" data-key="${k}" value="${CONFIG.texts[k]}" class="ui-text-input w-full bg-transparent border-none font-bold text-sm"></div>`;
             });
             document.getElementById("settingsModal").classList.remove("hidden");
         };
-
         window.closeSettings = () => document.getElementById("settingsModal").classList.add("hidden");
-
-        window.changeTheme = (t) => {
-            CONFIG.theme = t;
-            document.documentElement.setAttribute("data-theme", t);
-        };
-
+        window.changeTheme = (t) => { CONFIG.theme = t; document.documentElement.setAttribute("data-theme", t); };
         window.saveSettings = () => {
-            CONFIG.lowStock = parseInt(document.getElementById("lowStockInp").value);
-            CONFIG.currency = document.getElementById("currencyInp").value;
-            document.querySelectorAll(".ui-text-input").forEach(inp => CONFIG.texts[inp.dataset.key] = inp.value);
-
+            document.querySelectorAll(".ui-text-input").forEach(i => CONFIG.texts[i.dataset.key] = i.value);
             localStorage.setItem("theme", CONFIG.theme);
-            localStorage.setItem("lowStock", CONFIG.lowStock);
-            localStorage.setItem("currency", CONFIG.currency);
             localStorage.setItem("uiTexts", JSON.stringify(CONFIG.texts));
-
             applyUI(); renderTable(); closeSettings();
         };
 
-        document.getElementById("addForm").onsubmit = async (e) => {
-            e.preventDefault();
-            if (!isAdmin) return;
-            await addDoc(collection(db, "artifacts", appId, "public", "data", "inventory"), {
-                name: document.getElementById("inp_name").value,
-                desc: document.getElementById("inp_desc").value,
-                start: parseFloat(document.getElementById("inp_start").value) || 0,
-                bought: 0, spent: 0,
-                cost: parseFloat(document.getElementById("inp_cost").value) || 0,
-                order: inventory.length
-            });
-            e.target.reset();
-        };
-
         window.exportToExcel = () => {
-            const data = inventory.map(i => ({
-                "المادة": i.name, "المتبقي": (Number(i.start)||0) + (Number(i.bought)||0) - (Number(i.spent)||0),
-                "السعر": i.cost, "الإجمالي": ((Number(i.start)||0) + (Number(i.bought)||0) - (Number(i.spent)||0)) * (Number(i.cost)||0)
-            }));
-            const ws = XLSX.utils.json_to_sheet(data);
+            const ws = XLSX.utils.json_to_sheet(inventory);
             const wb = XLSX.utils.book_new();
             XLSX.utils.book_append_sheet(wb, ws, "Inventory");
-            XLSX.writeFile(wb, `مخزن_${new Date().toLocaleDateString()}.xlsx`);
+            XLSX.writeFile(wb, "Inventory.xlsx");
         };
 
         applyUI();
