@@ -1,0 +1,554 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>مخزن د. ثائر - سحابي</title>
+
+  <!-- UI libs -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/js/all.min.js" crossorigin="anonymous"></script>
+
+  <!-- Excel + Sort -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js" crossorigin="anonymous"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Sortable/1.15.0/Sortable.min.js" crossorigin="anonymous"></script>
+
+  <style>
+    :root{
+      --bg:#0f172a;
+      --card: rgba(30, 41, 59, 0.65);
+      --text:#e2e8f0;
+      --muted:#94a3b8;
+      --border: rgba(255,255,255,0.10);
+      --focus:#3b82f6;
+
+      --start:#34d399;   /* أخضر */
+      --bought:#38bdf8;  /* أزرق */
+      --spent:#fb923c;   /* برتقالي */
+    }
+
+    [data-theme="light"]{
+      --bg:#f8fafc;
+      --card: rgba(255,255,255,0.85);
+      --text:#0f172a;
+      --muted:#475569;
+      --border: rgba(15,23,42,0.12);
+    }
+
+    [data-theme="midnight"]{
+      --bg:#020617;
+      --card: rgba(15,23,42,0.78);
+    }
+
+    body{
+      background:var(--bg);
+      color:var(--text);
+      margin:0;
+      font-family: system-ui,-apple-system,"Segoe UI",Tahoma;
+    }
+
+    .glass{
+      background:var(--card);
+      backdrop-filter: blur(10px);
+      border: 1px solid rgba(255,255,255,0.08);
+    }
+
+    input, select{
+      background: rgba(15,23,42,0.6)!important;
+      border: 1px solid var(--border)!important;
+      color: var(--text)!important;
+    }
+
+    input:focus, select:focus{
+      outline:none;
+      border-color: var(--focus)!important;
+      background: rgba(30,41,59,0.9)!important;
+    }
+
+    th{
+      background:#1e293b!important;
+      color:var(--muted)!important;
+      white-space:nowrap;
+      font-size:0.8rem;
+    }
+
+    .handle{ cursor:grab; color:#64748b; padding:10px; }
+    .status-online{ color:#10b981; }
+    .status-offline{ color:#f87171; font-weight:700; }
+    .status-connecting{ color:#fbbf24; }
+
+    .field-start{
+      color: var(--start)!important;
+      background: color-mix(in oklab, var(--start) 12%, transparent)!important;
+      border-color: color-mix(in oklab, var(--start) 30%, transparent)!important;
+      font-weight:700;
+    }
+    .field-bought{
+      color: var(--bought)!important;
+      background: color-mix(in oklab, var(--bought) 12%, transparent)!important;
+      border-color: color-mix(in oklab, var(--bought) 30%, transparent)!important;
+      font-weight:700;
+    }
+    .field-spent{
+      color: var(--spent)!important;
+      background: color-mix(in oklab, var(--spent) 12%, transparent)!important;
+      border-color: color-mix(in oklab, var(--spent) 30%, transparent)!important;
+      font-weight:700;
+    }
+
+    /* Mobile */
+    @media (max-width: 768px) {
+      .table-container{ font-size:13px; }
+      input.table-input{ width:64px!important; padding:4px!important; font-size:12px; }
+      .name-input{ width:120px!important; }
+      .desc-input{ width:140px!important; }
+    }
+  </style>
+</head>
+
+<body class="min-h-screen">
+  <div class="max-w-7xl mx-auto p-4 md:p-6">
+
+    <!-- Header -->
+    <header class="flex flex-col md:flex-row justify-between items-center mb-6 gap-4">
+      <div class="flex items-center gap-4 w-full md:w-auto">
+        <div class="w-12 h-12 bg-blue-600 rounded-xl flex items-center justify-center shadow-lg">
+          <i class="fas fa-cloud text-2xl text-white"></i>
+        </div>
+        <div>
+          <h1 class="text-xl font-bold">مخزن د. ثائر السحابي</h1>
+          <div class="flex items-center gap-2 text-xs">
+            <span id="syncStatus" class="status-connecting">
+              <i class="fas fa-circle text-[8px]"></i> جاري الاتصال...
+            </span>
+            <span class="text-slate-500">|</span>
+            <span id="userDisplay" class="text-slate-400 italic">...</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="flex gap-2 w-full md:w-auto overflow-x-auto pb-2 md:pb-0">
+        <button onclick="openSettings()" class="bg-slate-600 hover:bg-slate-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 text-sm whitespace-nowrap shadow-lg">
+          <i class="fas fa-gear"></i> الإعدادات
+        </button>
+
+        <button onclick="exportToExcel()" class="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 text-sm whitespace-nowrap shadow-lg">
+          <i class="fas fa-file-excel"></i> تصدير إكسل
+        </button>
+      </div>
+    </header>
+
+    <!-- Stats -->
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
+      <div class="glass p-4 rounded-xl">
+        <p class="text-slate-400 text-[10px] md:text-xs mb-1">إجمالي القيمة المالية</p>
+        <h3 id="totalValue" class="text-sm md:text-lg font-bold text-blue-400">0</h3>
+      </div>
+      <div class="glass p-4 rounded-xl">
+        <p class="text-slate-400 text-[10px] md:text-xs mb-1">عدد المواد</p>
+        <h3 id="totalItems" class="text-sm md:text-lg font-bold">0</h3>
+      </div>
+      <div class="glass p-4 rounded-xl border-r-4 border-red-500">
+        <p class="text-slate-400 text-[10px] md:text-xs mb-1">نواقص</p>
+        <h3 id="lowStockCount" class="text-sm md:text-lg font-bold text-red-400">0</h3>
+      </div>
+      <div class="glass p-4 rounded-xl border-r-4 border-emerald-500">
+        <p class="text-slate-400 text-[10px] md:text-xs mb-1">إجمالي المصروف</p>
+        <h3 id="totalSpent" class="text-sm md:text-lg font-bold text-emerald-400">0</h3>
+      </div>
+    </div>
+
+    <!-- Add -->
+    <div class="glass p-4 rounded-xl mb-6">
+      <form id="addForm" class="grid grid-cols-2 md:grid-cols-5 gap-3">
+        <div class="col-span-2 md:col-span-1">
+          <input type="text" id="name" class="w-full p-2 rounded-lg text-sm" placeholder="المادة..." required />
+        </div>
+
+        <div class="col-span-2 md:col-span-2">
+          <input type="text" id="desc" class="w-full p-2 rounded-lg text-sm" placeholder="الوصف..." />
+        </div>
+
+        <div>
+          <input type="number" id="start" class="w-full p-2 rounded-lg text-sm" placeholder="البداية" step="any" />
+        </div>
+
+        <div>
+          <input type="number" id="cost" class="w-full p-2 rounded-lg text-sm" placeholder="سعر CC" step="any" />
+        </div>
+
+        <div class="col-span-2 md:col-span-5">
+          <button type="submit" class="w-full bg-slate-100 hover:bg-white text-slate-900 py-2 rounded-lg font-bold text-sm shadow-lg active:scale-95 transition-all">
+            إضافة مادة <i class="fas fa-plus mr-1"></i>
+          </button>
+        </div>
+      </form>
+    </div>
+
+    <!-- Table -->
+    <div class="glass rounded-xl overflow-hidden shadow-2xl">
+      <div class="overflow-x-auto table-container">
+        <table class="w-full text-right border-collapse">
+          <thead>
+            <tr class="border-b border-slate-700">
+              <th class="p-3 text-center w-8">#</th>
+              <th class="p-3">المادة</th>
+              <th class="p-3">الوصف</th>
+              <th class="p-3 text-center">البداية</th>
+              <th class="p-3 text-center">مشتريات</th>
+              <th class="p-3 text-center">مصروف</th>
+              <th class="p-3 text-center">المتبقي</th>
+              <th class="p-3 text-center">سعر CC</th>
+              <th class="p-3 text-center">القيمة الإجمالية</th>
+              <th class="p-3 text-center">الحالة</th>
+              <th class="p-3 text-center">حذف</th>
+            </tr>
+          </thead>
+          <tbody id="tableBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- Settings Modal -->
+  <div id="settingsModal" class="hidden fixed inset-0 bg-black/60 flex items-center justify-center p-4">
+    <div class="glass rounded-xl w-full max-w-lg p-4">
+      <div class="flex items-center justify-between mb-3">
+        <h3 class="font-bold text-lg">الإعدادات</h3>
+        <button onclick="closeSettings()" class="text-slate-300 hover:text-white">
+          <i class="fas fa-xmark"></i>
+        </button>
+      </div>
+
+      <div class="grid gap-3">
+        <label class="text-sm text-slate-300">الثيم</label>
+        <select id="themeSelect" class="p-2 rounded">
+          <option value="default">افتراضي</option>
+          <option value="midnight">Midnight</option>
+          <option value="light">Light</option>
+        </select>
+
+        <label class="text-sm text-slate-300">حد النقص (إذا المتبقي ≤ هذا الرقم يصير "نقص")</label>
+        <input id="thresholdInput" type="number" class="p-2 rounded" value="2" />
+
+        <label class="text-sm text-slate-300">العملة (مثلاً د.ع)</label>
+        <input id="currencyInput" type="text" class="p-2 rounded" value="د.ع" />
+      </div>
+
+      <div class="flex gap-2 mt-4">
+        <button onclick="saveSettingsUI()" class="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white py-2 rounded-lg font-bold">حفظ</button>
+        <button onclick="closeSettings()" class="flex-1 bg-slate-600 hover:bg-slate-700 text-white py-2 rounded-lg font-bold">إلغاء</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- App Script -->
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-app.js";
+    import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-auth.js";
+    import {
+      getFirestore, collection, addDoc, updateDoc, deleteDoc,
+      doc, onSnapshot, query, writeBatch
+    } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-firestore.js";
+
+    /** ===== Settings ===== */
+    const DEFAULT_SETTINGS = { theme:"midnight", lowThreshold:2, currency:"د.ع" };
+    function loadSettings(){
+      try{ return { ...DEFAULT_SETTINGS, ...(JSON.parse(localStorage.getItem("settings")||"{}")) }; }
+      catch{ return { ...DEFAULT_SETTINGS }; }
+    }
+    function saveSettings(s){ localStorage.setItem("settings", JSON.stringify(s)); }
+    let SETTINGS = loadSettings();
+
+    function applyTheme(){
+      document.documentElement.setAttribute("data-theme", SETTINGS.theme === "default" ? "" : SETTINGS.theme);
+    }
+
+    /** ===== Firebase ===== */
+    const firebaseConfig = {
+      apiKey: "AIzaSyC_KaWOZVWJ5WvVhUjiz58dx6d6sWH1EZQ",
+      authDomain: "clinic-storage.firebaseapp.com",
+      projectId: "clinic-storage",
+      storageBucket: "clinic-storage.firebasestorage.app",
+      messagingSenderId: "284636281654",
+      appId: "1:284636281654:web:aa19cd577c4efda5d21197"
+    };
+
+    // نفس البيانات بكل الأجهزة (حاسبة + موبايل)
+    const appId = "clinic-storage";
+
+    const app = initializeApp(firebaseConfig);
+    const auth = getAuth(app);
+    const db = getFirestore(app);
+
+    let currentUser = null;
+    let inventory = [];
+    let sortableInited = false;
+
+    const $ = (id) => document.getElementById(id);
+    const esc = (v) => String(v ?? "").replace(/"/g, "&quot;");
+
+    function invCol(){
+      return collection(db, "artifacts", appId, "public", "data", "inventory");
+    }
+
+    function setStatusOnline(uid){
+      const s = $("syncStatus");
+      s.innerHTML = '<i class="fas fa-circle text-[8px]"></i> متصل سحابياً';
+      s.className = "status-online";
+      $("userDisplay").innerText = `المعرف: ${uid.substring(0,8)}`;
+    }
+
+    function setStatusOffline(msg){
+      const s = $("syncStatus");
+      s.textContent = `فشل الاتصال${msg ? ": " + msg : ""}`;
+      s.className = "status-offline";
+    }
+
+    async function initAuth(){
+      try{ await signInAnonymously(auth); }
+      catch(err){
+        console.error("Auth Failure:", err);
+        setStatusOffline(err?.code || err?.message || "Unknown");
+      }
+    }
+
+    onAuthStateChanged(auth, (user)=>{
+      if(!user) return;
+      currentUser = user;
+      setStatusOnline(user.uid);
+      startRealtime();
+    });
+
+    function startRealtime(){
+      const q = query(invCol());
+      onSnapshot(q, (snapshot)=>{
+        inventory = snapshot.docs.map(d=>({ id:d.id, ...d.data() }))
+          .sort((a,b)=>(a.order||0)-(b.order||0));
+        renderTable();
+      }, (err)=>{
+        console.error("Firestore snapshot error:", err);
+        setStatusOffline(err?.code || err?.message || "Firestore error");
+      });
+    }
+
+    window.updateField = async (id, field, value)=>{
+      if(!currentUser) return;
+      const isText = field === "name" || field === "desc";
+      const val = isText ? (value ?? "") : (parseFloat(value) || 0);
+      try{
+        await updateDoc(doc(db,"artifacts",appId,"public","data","inventory",id), { [field]: val });
+      }catch(e){
+        console.error("Update error:", e);
+        alert("صار خطأ بالتحديث.");
+      }
+    };
+
+    window.deleteItem = async (id)=>{
+      if(!confirm("حذف نهائي؟")) return;
+      try{
+        await deleteDoc(doc(db,"artifacts",appId,"public","data","inventory",id));
+      }catch(e){
+        console.error("Delete error:", e);
+        alert("صار خطأ بالحذف.");
+      }
+    };
+
+    $("addForm").addEventListener("submit", async (e)=>{
+      e.preventDefault();
+      const name = ($("name").value || "").trim();
+      const desc = ($("desc").value || "").trim();
+      const start = parseFloat($("start").value) || 0;
+      const cost = parseFloat($("cost").value) || 0;
+      if(!name) return;
+
+      const data = { name, desc, start, bought:0, spent:0, cost, order: inventory.length, createdAt: Date.now() };
+      try{
+        await addDoc(invCol(), data);
+        e.target.reset();
+      }catch(err){
+        console.error("Add error:", err);
+        alert("صار خطأ بالإضافة.");
+      }
+    });
+
+    function renderTable(){
+      const body = $("tableBody");
+      if(!body) return;
+      body.innerHTML = "";
+
+      let totalVal = 0;
+      let totalSpentCount = 0;
+      let lowStock = 0;
+
+      for(const item of inventory){
+        const start = Number(item.start)||0;
+        const bought = Number(item.bought)||0;
+        const spent = Number(item.spent)||0;
+        const cost = Number(item.cost)||0;
+
+        const remaining = (start+bought)-spent;
+        const rowValue = remaining * cost;
+
+        totalVal += rowValue;
+        totalSpentCount += spent;
+        if(remaining <= SETTINGS.lowThreshold) lowStock++;
+
+        const statusText = remaining <= SETTINGS.lowThreshold ? "نقص" : "متوفر";
+        const statusClass = remaining <= SETTINGS.lowThreshold ? "text-red-400 font-bold" : "text-emerald-400 font-bold";
+
+        const tr = document.createElement("tr");
+        tr.className = "border-b border-slate-800 hover:bg-slate-800/40 transition-colors";
+        tr.setAttribute("data-id", item.id);
+
+        tr.innerHTML = `
+          <td class="p-2 text-center"><i class="fas fa-grip-vertical handle"></i></td>
+
+          <td class="p-2">
+            <input type="text" value="${esc(item.name)}"
+              onblur="updateField('${item.id}','name',this.value)"
+              class="name-input w-full bg-transparent border-none focus:ring-1 focus:ring-blue-500 font-bold rounded px-2">
+          </td>
+
+          <td class="p-2">
+            <input type="text" value="${esc(item.desc)}"
+              onblur="updateField('${item.id}','desc',this.value)"
+              class="desc-input w-full bg-transparent border-none focus:ring-1 focus:ring-blue-500 rounded px-2">
+          </td>
+
+          <td class="p-2 text-center">
+            <input type="number" step="any" value="${start}"
+              onchange="updateField('${item.id}','start',this.value)"
+              class="table-input w-20 p-1 rounded text-center field-start">
+          </td>
+
+          <td class="p-2 text-center">
+            <input type="number" step="any" value="${bought}"
+              onchange="updateField('${item.id}','bought',this.value)"
+              class="table-input w-20 p-1 rounded text-center field-bought">
+          </td>
+
+          <td class="p-2 text-center">
+            <input type="number" step="any" value="${spent}"
+              onchange="updateField('${item.id}','spent',this.value)"
+              class="table-input w-20 p-1 rounded text-center field-spent">
+          </td>
+
+          <td class="p-2 text-center font-bold ${remaining <= SETTINGS.lowThreshold ? "text-red-400" : "text-slate-200"}">
+            ${remaining}
+          </td>
+
+          <td class="p-2 text-center">
+            <input type="number" step="any" value="${cost}"
+              onchange="updateField('${item.id}','cost',this.value)"
+              class="table-input w-24 p-1 rounded text-center">
+          </td>
+
+          <td class="p-2 text-center font-bold text-blue-400 text-xs">
+            ${Number.isFinite(rowValue) ? rowValue.toLocaleString() : "0"}
+          </td>
+
+          <td class="p-2 text-center ${statusClass}">
+            ${statusText}
+          </td>
+
+          <td class="p-2 text-center">
+            <button onclick="deleteItem('${item.id}')" class="text-slate-500 hover:text-red-500 transition-colors">
+              <i class="fas fa-trash-alt"></i>
+            </button>
+          </td>
+        `;
+        body.appendChild(tr);
+      }
+
+      $("totalValue").innerText = totalVal.toLocaleString() + " " + SETTINGS.currency;
+      $("totalItems").innerText = inventory.length;
+      $("lowStockCount").innerText = lowStock;
+      $("totalSpent").innerText = totalSpentCount;
+
+      ensureSortable();
+    }
+
+    function ensureSortable(){
+      if(sortableInited) return;
+      if(typeof Sortable === "undefined") return;
+
+      Sortable.create($("tableBody"), {
+        handle: ".handle",
+        animation: 150,
+        onEnd: async () => {
+          try{
+            const batch = writeBatch(db);
+            document.querySelectorAll("#tableBody tr").forEach((row, idx)=>{
+              const id = row.getAttribute("data-id");
+              if(!id) return;
+              batch.update(doc(db,"artifacts",appId,"public","data","inventory",id), { order: idx });
+            });
+            await batch.commit();
+          }catch(e){
+            console.error("Sort save error:", e);
+          }
+        }
+      });
+
+      sortableInited = true;
+    }
+
+    /** ===== Settings Modal ===== */
+    window.openSettings = () => {
+      $("settingsModal").classList.remove("hidden");
+      $("themeSelect").value = SETTINGS.theme;
+      $("thresholdInput").value = SETTINGS.lowThreshold;
+      $("currencyInput").value = SETTINGS.currency;
+    };
+    window.closeSettings = () => {
+      $("settingsModal").classList.add("hidden");
+    };
+    window.saveSettingsUI = () => {
+      SETTINGS.theme = $("themeSelect").value;
+      SETTINGS.lowThreshold = Math.max(0, parseFloat($("thresholdInput").value) || 2);
+      SETTINGS.currency = ($("currencyInput").value || "د.ع").trim();
+      saveSettings(SETTINGS);
+      applyTheme();
+      renderTable();
+      window.closeSettings();
+    };
+
+    /** ===== Excel Export ===== */
+    window.exportToExcel = () => {
+      if(typeof XLSX === "undefined"){
+        alert("XLSX مو محمّلة");
+        return;
+      }
+
+      const data = inventory.map(i=>{
+        const start = Number(i.start)||0, bought=Number(i.bought)||0, spent=Number(i.spent)||0, cost=Number(i.cost)||0;
+        const remaining = (start+bought)-spent;
+        const status = remaining <= SETTINGS.lowThreshold ? "نقص" : "متوفر";
+
+        return {
+          "المادة": i.name || "",
+          "الوصف": i.desc || "",
+          "البداية": start,
+          "مشتريات": bought,
+          "مصروف": spent,
+          "المتبقي": remaining,
+          "سعر CC": cost,
+          "القيمة الإجمالية": remaining * cost,
+          "الحالة": status
+        };
+      });
+
+      const ws = XLSX.utils.json_to_sheet(data);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "Inventory");
+      XLSX.writeFile(wb, `مخزن_د_ثائر_${new Date().toISOString().split("T")[0]}.xlsx`);
+    };
+
+    /** boot */
+    applyTheme();
+    initAuth();
+    renderTable();
+  </script>
+</body>
+</html>
