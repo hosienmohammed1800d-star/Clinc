@@ -1,0 +1,432 @@
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-app.js";
+  import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-auth.js";
+  import {
+    getFirestore, collection, addDoc, updateDoc, deleteDoc,
+    doc, onSnapshot, query, writeBatch
+  } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-firestore.js";
+
+  /** ===== Firebase ===== */
+  const firebaseConfig = {
+    apiKey: "AIzaSyC_KaWOZVWJ5WvVhUjiz58dx6d6sWH1EZQ",
+    authDomain: "clinic-storage.firebaseapp.com",
+    projectId: "clinic-storage",
+    storageBucket: "clinic-storage.firebasestorage.app",
+    messagingSenderId: "284636281654",
+    appId: "1:284636281654:web:aa19cd577c4efda5d21197"
+  };
+  const appId = "clinic-storage";
+
+  const app = initializeApp(firebaseConfig);
+  const auth = getAuth(app);
+  const db = getFirestore(app);
+
+  /** ===== Helpers ===== */
+  const $ = (id) => document.getElementById(id);
+  const esc = (v) => String(v ?? "").replace(/"/g, "&quot;");
+
+  function invCol(){ return collection(db, "artifacts", appId, "public", "data", "inventory"); }
+
+  /** ===== Settings ===== */
+  const DEFAULT_SETTINGS = { theme:"midnight", lowThreshold:2, currency:"د.ع" };
+  const DEFAULT_TEXTS = {
+    title:"مخزن د. ثائر - سحابي",
+    header:"مخزن د. ثائر السحابي",
+    btnSettings:"الإعدادات",
+    btnExcel:"تصدير إكسل",
+    btnAdd:"إضافة مادة",
+    statusOk:"متوفر",
+    statusLow:"نقص",
+    colName:"المادة",
+    colDesc:"الوصف",
+    colStart:"البداية",
+    colBought:"مشتريات",
+    colSpent:"مصروف"
+  };
+
+  const loadJson = (k, f) => { try{ return { ...f, ...(JSON.parse(localStorage.getItem(k)||"{}")) }; }catch{ return { ...f }; } };
+  const saveJson = (k, o) => localStorage.setItem(k, JSON.stringify(o));
+
+  let SETTINGS = loadJson("settings", DEFAULT_SETTINGS);
+  let TEXTS = loadJson("texts", DEFAULT_TEXTS);
+
+  function applyTheme(){
+    document.documentElement.setAttribute("data-theme", SETTINGS.theme || "midnight");
+  }
+
+  function applyTexts(){
+    document.title = TEXTS.title;
+
+    const h1 = document.querySelector("header h1");
+    if(h1) h1.textContent = TEXTS.header;
+
+    // زر الإعدادات
+    const btnSettings = document.querySelector('button[onclick="openSettings()"]');
+    if(btnSettings) btnSettings.innerHTML = `<i class="fas fa-gear"></i> ${TEXTS.btnSettings}`;
+
+    // زر إكسل
+    const btnExcel = document.querySelector('button[onclick="exportToExcel()"]');
+    if(btnExcel) btnExcel.innerHTML = `<i class="fas fa-file-excel"></i> ${TEXTS.btnExcel}`;
+
+    // زر إضافة
+    const addBtn = document.querySelector("#addForm button[type='submit']");
+    if(addBtn) addBtn.innerHTML = `${TEXTS.btnAdd} <i class="fas fa-plus mr-1"></i>`;
+
+    // رؤوس الجدول
+    const ths = document.querySelectorAll("thead th");
+    // #, المادة, الوصف, البداية, مشتريات, مصروف, المتبقي, سعر CC, القيمة, الحالة, حذف
+    if(ths.length >= 11){
+      ths[1].textContent = TEXTS.colName;
+      ths[2].textContent = TEXTS.colDesc;
+      ths[3].textContent = TEXTS.colStart;
+      ths[4].textContent = TEXTS.colBought;
+      ths[5].textContent = TEXTS.colSpent;
+    }
+  }
+
+  /** ===== Admin Password Gate (واجهة فقط) ===== */
+  const ADMIN_UNLOCK_KEY = "admin_unlocked";
+  const ADMIN_PASS_HASH_KEY = "admin_pass_hash";
+  const DEFAULT_ADMIN_PASSWORD = "admin123"; // غيره
+
+  async function sha256(text){
+    const enc = new TextEncoder().encode(text);
+    const buf = await crypto.subtle.digest("SHA-256", enc);
+    return [...new Uint8Array(buf)].map(b=>b.toString(16).padStart(2,"0")).join("");
+  }
+
+  async function ensureAdminPass(){
+    if(!localStorage.getItem(ADMIN_PASS_HASH_KEY)){
+      localStorage.setItem(ADMIN_PASS_HASH_KEY, await sha256(DEFAULT_ADMIN_PASSWORD));
+    }
+  }
+
+  window.isAdmin = () => localStorage.getItem(ADMIN_UNLOCK_KEY) === "1";
+  function setAdmin(on){ localStorage.setItem(ADMIN_UNLOCK_KEY, on ? "1" : "0"); refreshAdminUI(); }
+
+  window.openAdmin = () => { $("adminModal").classList.remove("hidden"); $("adminError").classList.add("hidden"); $("adminPassword").value=""; };
+  window.closeAdmin = () => $("adminModal").classList.add("hidden");
+
+  window.adminLogin = async () => {
+    const pass = ($("adminPassword").value || "").trim();
+    const stored = localStorage.getItem(ADMIN_PASS_HASH_KEY);
+    const h = await sha256(pass);
+    if(h === stored){
+      setAdmin(true);
+      closeAdmin();
+    }else{
+      $("adminError").classList.remove("hidden");
+    }
+  };
+
+  window.adminLogout = () => setAdmin(false);
+
+  function refreshAdminUI(){
+    const locked = !window.isAdmin();
+
+    // قفل فورم الإضافة
+    const form = $("addForm");
+    if(form){
+      form.querySelectorAll("input,button").forEach(el=>{
+        el.disabled = locked;
+        el.classList.toggle("opacity-60", locked);
+        el.classList.toggle("cursor-not-allowed", locked);
+      });
+    }
+
+    // قفل inputs داخل الجدول + اخفاء حذف
+    const body = $("tableBody");
+    if(body){
+      body.querySelectorAll("input").forEach(inp=>{
+        inp.disabled = locked;
+        inp.classList.toggle("opacity-60", locked);
+        inp.classList.toggle("cursor-not-allowed", locked);
+      });
+      body.querySelectorAll("button[data-del='1']").forEach(btn=>{
+        btn.style.display = locked ? "none" : "";
+      });
+    }
+  }
+
+  /** ===== Settings UI functions ===== */
+  window.openSettings = () => {
+    $("settingsModal").classList.remove("hidden");
+    $("themeSelect").value = SETTINGS.theme;
+    $("thresholdInput").value = SETTINGS.lowThreshold;
+    $("currencyInput").value = SETTINGS.currency;
+  };
+  window.closeSettings = () => $("settingsModal").classList.add("hidden");
+
+  window.saveSettingsUI = () => {
+    SETTINGS.theme = $("themeSelect").value;
+    SETTINGS.lowThreshold = Math.max(0, parseFloat($("thresholdInput").value) || 2);
+    SETTINGS.currency = ($("currencyInput").value || "د.ع").trim();
+    saveJson("settings", SETTINGS);
+    applyTheme();
+    renderTable();
+    closeSettings();
+  };
+
+  window.openTexts = () => {
+    $("textsModal").classList.remove("hidden");
+    $("t_title").value = TEXTS.title;
+    $("t_header").value = TEXTS.header;
+    $("t_btnSettings").value = TEXTS.btnSettings;
+    $("t_btnExcel").value = TEXTS.btnExcel;
+    $("t_btnAdd").value = TEXTS.btnAdd;
+    $("t_statusOk").value = TEXTS.statusOk;
+    $("t_statusLow").value = TEXTS.statusLow;
+    $("t_colName").value = TEXTS.colName;
+    $("t_colDesc").value = TEXTS.colDesc;
+    $("t_colStart").value = TEXTS.colStart;
+    $("t_colBought").value = TEXTS.colBought;
+    $("t_colSpent").value = TEXTS.colSpent;
+  };
+  window.closeTexts = () => $("textsModal").classList.add("hidden");
+
+  window.saveTextsUI = () => {
+    TEXTS = {
+      ...TEXTS,
+      title: $("t_title").value || TEXTS.title,
+      header: $("t_header").value || TEXTS.header,
+      btnSettings: $("t_btnSettings").value || TEXTS.btnSettings,
+      btnExcel: $("t_btnExcel").value || TEXTS.btnExcel,
+      btnAdd: $("t_btnAdd").value || TEXTS.btnAdd,
+      statusOk: $("t_statusOk").value || TEXTS.statusOk,
+      statusLow: $("t_statusLow").value || TEXTS.statusLow,
+      colName: $("t_colName").value || TEXTS.colName,
+      colDesc: $("t_colDesc").value || TEXTS.colDesc,
+      colStart: $("t_colStart").value || TEXTS.colStart,
+      colBought: $("t_colBought").value || TEXTS.colBought,
+      colSpent: $("t_colSpent").value || TEXTS.colSpent,
+    };
+    saveJson("texts", TEXTS);
+    applyTexts();
+    renderTable();
+    closeTexts();
+  };
+
+  /** ===== Firebase Realtime ===== */
+  let currentUser = null;
+  let inventory = [];
+  let sortableInited = false;
+
+  function setStatusOnline(uid){
+    const s = $("syncStatus");
+    s.innerHTML = '<i class="fas fa-circle text-[8px]"></i> متصل سحابياً';
+    s.className = "status-online";
+    $("userDisplay").innerText = `المعرف: ${uid.substring(0,8)}`;
+  }
+  function setStatusOffline(msg){
+    const s = $("syncStatus");
+    s.textContent = `فشل الاتصال${msg ? ": " + msg : ""}`;
+    s.className = "status-offline";
+  }
+
+  async function initAuth(){
+    try{ await signInAnonymously(auth); }
+    catch(err){
+      console.error(err);
+      setStatusOffline(err?.code || err?.message || "Auth error");
+    }
+  }
+
+  onAuthStateChanged(auth, (user)=>{
+    if(!user) return;
+    currentUser = user;
+    setStatusOnline(user.uid);
+    startRealtime();
+  });
+
+  function startRealtime(){
+    onSnapshot(query(invCol()),
+      (snap)=>{
+        inventory = snap.docs.map(d=>({ id:d.id, ...d.data() }))
+          .sort((a,b)=>(a.order||0)-(b.order||0));
+        renderTable();
+      },
+      (err)=>{
+        console.error(err);
+        setStatusOffline(err?.code || err?.message || "Firestore error");
+      }
+    );
+  }
+
+  window.updateField = async (id, field, value)=>{
+    if(!window.isAdmin()){ openAdmin(); return; }
+    if(!currentUser) return;
+
+    const isText = (field==="name" || field==="desc");
+    const val = isText ? (value ?? "") : (parseFloat(value) || 0);
+
+    await updateDoc(doc(db,"artifacts",appId,"public","data","inventory",id), { [field]: val });
+  };
+
+  window.deleteItem = async (id)=>{
+    if(!window.isAdmin()){ openAdmin(); return; }
+    if(!confirm("حذف نهائي؟")) return;
+    await deleteDoc(doc(db,"artifacts",appId,"public","data","inventory",id));
+  };
+
+  $("addForm").addEventListener("submit", async (e)=>{
+    e.preventDefault();
+    if(!window.isAdmin()){ openAdmin(); return; }
+
+    const name = ($("name").value||"").trim();
+    const desc = ($("desc").value||"").trim();
+    const start = parseFloat($("start").value)||0;
+    const cost = parseFloat($("cost").value)||0;
+    if(!name) return;
+
+    await addDoc(invCol(), { name, desc, start, bought:0, spent:0, cost, order: inventory.length, createdAt: Date.now() });
+    e.target.reset();
+  });
+
+  function renderTable(){
+    const body = $("tableBody");
+    if(!body) return;
+    body.innerHTML = "";
+
+    let totalVal=0, totalSpentCount=0, lowStock=0;
+
+    for(const item of inventory){
+      const start = Number(item.start)||0;
+      const bought = Number(item.bought)||0;
+      const spent  = Number(item.spent)||0;
+      const cost   = Number(item.cost)||0;
+
+      const remaining = (start+bought)-spent;
+      const rowValue = remaining*cost;
+
+      totalVal += rowValue;
+      totalSpentCount += spent;
+      if(remaining <= SETTINGS.lowThreshold) lowStock++;
+
+      const statusText = remaining <= SETTINGS.lowThreshold ? TEXTS.statusLow : TEXTS.statusOk;
+      const statusClass = remaining <= SETTINGS.lowThreshold ? "text-red-400 font-bold" : "text-emerald-400 font-bold";
+
+      const tr = document.createElement("tr");
+      tr.className = "border-b border-slate-800 hover:bg-slate-800/40 transition-colors";
+      tr.setAttribute("data-id", item.id);
+
+      tr.innerHTML = `
+        <td class="p-2 text-center"><i class="fas fa-grip-vertical handle text-slate-700"></i></td>
+
+        <td class="p-2">
+          <input type="text" value="${esc(item.name)}"
+            onblur="updateField('${item.id}','name',this.value)"
+            class="name-input w-full bg-transparent border-none focus:ring-1 focus:ring-blue-500 font-bold rounded px-2">
+        </td>
+
+        <td class="p-2">
+          <input type="text" value="${esc(item.desc)}"
+            onblur="updateField('${item.id}','desc',this.value)"
+            class="w-full bg-transparent border-none focus:ring-1 focus:ring-blue-500 rounded px-2">
+        </td>
+
+        <td class="p-2 text-center">
+          <input type="number" step="any" value="${start}"
+            onchange="updateField('${item.id}','start',this.value)"
+            class="table-input w-20 p-1 rounded text-center font-bold text-emerald-300 bg-emerald-500/10 border border-emerald-500/30">
+        </td>
+
+        <td class="p-2 text-center">
+          <input type="number" step="any" value="${bought}"
+            onchange="updateField('${item.id}','bought',this.value)"
+            class="table-input w-20 p-1 rounded text-center font-bold text-sky-300 bg-sky-500/10 border border-sky-500/30">
+        </td>
+
+        <td class="p-2 text-center">
+          <input type="number" step="any" value="${spent}"
+            onchange="updateField('${item.id}','spent',this.value)"
+            class="table-input w-20 p-1 rounded text-center font-bold text-orange-300 bg-orange-500/10 border border-orange-500/30">
+        </td>
+
+        <td class="p-2 text-center font-bold ${remaining <= SETTINGS.lowThreshold ? "text-red-400" : "text-slate-200"}">${remaining}</td>
+
+        <td class="p-2 text-center">
+          <input type="number" step="any" value="${cost}"
+            onchange="updateField('${item.id}','cost',this.value)"
+            class="table-input w-24 p-1 rounded text-center">
+        </td>
+
+        <td class="p-2 text-center font-bold text-blue-400 text-xs">${Number.isFinite(rowValue) ? rowValue.toLocaleString() : "0"}</td>
+
+        <td class="p-2 text-center ${statusClass}">${statusText}</td>
+
+        <td class="p-2 text-center">
+          <button data-del="1" onclick="deleteItem('${item.id}')"
+            class="text-slate-600 hover:text-red-500 transition-colors">
+            <i class="fas fa-trash-alt"></i>
+          </button>
+        </td>
+      `;
+      body.appendChild(tr);
+    }
+
+    $("totalValue").innerText = totalVal.toLocaleString() + " " + SETTINGS.currency;
+    $("totalItems").innerText = inventory.length;
+    $("lowStockCount").innerText = lowStock;
+    $("totalSpent").innerText = totalSpentCount;
+
+    ensureSortable();
+    refreshAdminUI();
+  }
+
+  function ensureSortable(){
+    if(sortableInited) return;
+    if(typeof Sortable === "undefined") return;
+
+    Sortable.create($("tableBody"), {
+      handle: ".handle",
+      animation: 150,
+      onEnd: async () => {
+        if(!window.isAdmin()){ openAdmin(); renderTable(); return; }
+        const batch = writeBatch(db);
+        document.querySelectorAll("#tableBody tr").forEach((row, idx)=>{
+          const id = row.getAttribute("data-id");
+          if(!id) return;
+          batch.update(doc(db,"artifacts",appId,"public","data","inventory",id), { order: idx });
+        });
+        await batch.commit();
+      }
+    });
+
+    sortableInited = true;
+  }
+
+  /** ===== Excel ===== */
+  window.exportToExcel = () => {
+    if(typeof XLSX === "undefined"){ alert("XLSX مو محمّلة"); return; }
+
+    const data = inventory.map(i=>{
+      const start = Number(i.start)||0, bought=Number(i.bought)||0, spent=Number(i.spent)||0, cost=Number(i.cost)||0;
+      const remaining = (start+bought)-spent;
+      const status = remaining <= SETTINGS.lowThreshold ? TEXTS.statusLow : TEXTS.statusOk;
+
+      return {
+        [TEXTS.colName]: i.name || "",
+        [TEXTS.colDesc]: i.desc || "",
+        [TEXTS.colStart]: start,
+        [TEXTS.colBought]: bought,
+        [TEXTS.colSpent]: spent,
+        "المتبقي": remaining,
+        "سعر CC": cost,
+        "القيمة الإجمالية": remaining * cost,
+        "الحالة": status
+      };
+    });
+
+    const ws = XLSX.utils.json_to_sheet(data);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Inventory");
+    XLSX.writeFile(wb, `مخزن_د_ثائر_${new Date().toISOString().split("T")[0]}.xlsx`);
+  };
+
+  /** ===== Boot ===== */
+  await ensureAdminPass();
+  applyTheme();
+  applyTexts();
+  refreshAdminUI();
+  initAuth();
+</script>
