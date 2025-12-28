@@ -26,14 +26,9 @@
   };
   const saveJson = (k, obj) => localStorage.setItem(k, JSON.stringify(obj));
 
-  // ===== Settings + Texts =====
-  const DEFAULT_SETTINGS = { theme: "midnight", lowThreshold: 2, currency: "د.ع" };
-  const DEFAULT_TEXTS = {
-    title: "مخزن د. ثائر - سحابي",
-    header: "مخزن د. ثائر السحابي",
-    btnSettings: "الإعدادات",
-    btnExcel: "تصدير إكسل",
-    btnAdd: "إضافة مادة",
+  // ===== Settings =====
+  let SETTINGS = loadJson("settings", { theme: "midnight", lowThreshold: 2, currency: "د.ع" });
+  let TEXTS = loadJson("texts", {
     statusOk: "متوفر",
     statusLow: "نقص",
     colName: "المادة",
@@ -41,196 +36,111 @@
     colStart: "البداية",
     colBought: "مشتريات",
     colSpent: "مصروف"
-  };
+  });
 
-  let SETTINGS = loadJson("settings", DEFAULT_SETTINGS);
-  let TEXTS = loadJson("texts", DEFAULT_TEXTS);
+  // ===== Admin Logic (Security Layer) =====
+  const ADMIN_PASS_KEY = "admin_password_plain";
+  const DEFAULT_PASS = "admin123";
 
-  function applyTheme() {
-    document.documentElement.setAttribute("data-theme", SETTINGS.theme || "midnight");
-  }
-
-  function applyTexts() {
-    document.title = TEXTS.title;
-
-    const h1 = document.querySelector("header h1");
-    if (h1) h1.textContent = TEXTS.header;
-
-    const ths = document.querySelectorAll("thead th");
-    // #, المادة, الوصف, البداية, مشتريات, مصروف, المتبقي, سعر CC, القيمة, الحالة, حذف
-    if (ths.length >= 11) {
-      ths[1].textContent = TEXTS.colName;
-      ths[2].textContent = TEXTS.colDesc;
-      ths[3].textContent = TEXTS.colStart;
-      ths[4].textContent = TEXTS.colBought;
-      ths[5].textContent = TEXTS.colSpent;
-    }
-  }
-
-  // ===== Admin (Option A - UI lock) =====
-  const ADMIN_UNLOCK_KEY = "admin_unlocked";
-  const ADMIN_PASS_KEY = "admin_password_plain"; // ⚠️ خيار A: باسوورد داخل المتصفح
-  const DEFAULT_ADMIN_PASSWORD = "admin123";     // غيره مثل ما تريد
-
-  function ensureAdminPass() {
-    if (!localStorage.getItem(ADMIN_PASS_KEY)) {
-      localStorage.setItem(ADMIN_PASS_KEY, DEFAULT_ADMIN_PASSWORD);
-    }
-  }
-
-  window.isAdmin = () => localStorage.getItem(ADMIN_UNLOCK_KEY) === "1";
-  function setAdmin(on) {
-    localStorage.setItem(ADMIN_UNLOCK_KEY, on ? "1" : "0");
-    refreshAdminUI();
-  }
-
+  window.isAdmin = () => localStorage.getItem("admin_unlocked") === "1";
+  
   window.openAdmin = () => {
-    const m = $("adminModal");
-    if (!m) return alert("adminModal مو موجود بالـ HTML");
-    m.classList.remove("hidden");
-    const err = $("adminError");
-    if (err) err.classList.add("hidden");
-    const ip = $("adminPassword");
-    if (ip) ip.value = "";
+    $("adminModal")?.classList.remove("hidden");
+    $("adminPassword")?.focus();
   };
-  window.closeAdmin = () => $("adminModal")?.classList.add("hidden");
 
   window.adminLogin = () => {
     const pass = ($("adminPassword")?.value || "").trim();
-    const stored = localStorage.getItem(ADMIN_PASS_KEY) || DEFAULT_ADMIN_PASSWORD;
+    const stored = localStorage.getItem(ADMIN_PASS_KEY) || DEFAULT_PASS;
     if (pass === stored) {
-      setAdmin(true);
-      window.closeAdmin();
+      localStorage.setItem("admin_unlocked", "1");
+      $("adminModal")?.classList.add("hidden");
+      refreshAdminUI();
+      renderTable(); // إعادة الرندر لتفعيل الأزرار
     } else {
       $("adminError")?.classList.remove("hidden");
     }
   };
 
-  window.adminLogout = () => setAdmin(false);
+  window.adminLogout = () => {
+    localStorage.setItem("admin_unlocked", "0");
+    refreshAdminUI();
+    renderTable();
+  };
 
   function refreshAdminUI() {
     const locked = !window.isAdmin();
-
-    // قفل الفورم
     const form = $("addForm");
     if (form) {
       form.querySelectorAll("input,button").forEach(el => {
         el.disabled = locked;
-        el.classList.toggle("opacity-60", locked);
+        el.classList.toggle("opacity-50", locked);
         el.classList.toggle("cursor-not-allowed", locked);
       });
     }
-
-    // قفل جدول
-    const body = $("tableBody");
-    if (body) {
-      body.querySelectorAll("input").forEach(inp => {
-        inp.disabled = locked;
-        inp.classList.toggle("opacity-60", locked);
-        inp.classList.toggle("cursor-not-allowed", locked);
-      });
-      body.querySelectorAll("button[data-del='1']").forEach(btn => {
-        btn.style.display = locked ? "none" : "";
-      });
-    }
   }
 
-  // ===== Settings Modal (إذا موجود) =====
-  window.openSettings = () => {
-    $("settingsModal")?.classList.remove("hidden");
-    if ($("themeSelect")) $("themeSelect").value = SETTINGS.theme;
-    if ($("thresholdInput")) $("thresholdInput").value = SETTINGS.lowThreshold;
-    if ($("currencyInput")) $("currencyInput").value = SETTINGS.currency;
-  };
-  window.closeSettings = () => $("settingsModal")?.classList.add("hidden");
-
-  window.saveSettingsUI = () => {
-    if ($("themeSelect")) SETTINGS.theme = $("themeSelect").value;
-    if ($("thresholdInput")) SETTINGS.lowThreshold = Math.max(0, parseFloat($("thresholdInput").value) || 2);
-    if ($("currencyInput")) SETTINGS.currency = ($("currencyInput").value || "د.ع").trim();
-
-    saveJson("settings", SETTINGS);
-    applyTheme();
-    renderTable();
-    window.closeSettings();
-  };
-
-  // ===== Firebase =====
+  // ===== Firebase Setup =====
   const app = initializeApp(firebaseConfig);
   const auth = getAuth(app);
   const db = getFirestore(app);
-
-  let currentUser = null;
   let inventory = [];
-  let sortableInited = false;
 
-  function invCol() {
-    return collection(db, "artifacts", appId, "public", "data", "inventory");
-  }
+  const invCol = () => collection(db, "artifacts", appId, "public", "data", "inventory");
 
-  function setStatusOnline(uid) {
-    const s = $("syncStatus");
-    if (s) {
-      s.innerHTML = '<i class="fas fa-circle text-[8px]"></i> متصل سحابياً';
-      s.className = "status-online";
-    }
-    const u = $("userDisplay");
-    if (u) u.textContent = `المعرف: ${uid.substring(0, 8)}`;
-  }
-
-  function setStatusOffline(msg) {
-    const s = $("syncStatus");
-    if (s) {
-      s.textContent = `فشل الاتصال${msg ? ": " + msg : ""}`;
-      s.className = "status-offline";
-    }
-  }
-
-  async function initAuth() {
+  // ===== Core Functions =====
+  async function initApp() {
     try {
       await signInAnonymously(auth);
+      onAuthStateChanged(auth, (user) => {
+        if (user) {
+          $("syncStatus")?.classList.add("text-emerald-400");
+          $("syncStatus").innerHTML = "● متصل سحابياً";
+          startRealtimeSync();
+        }
+      });
     } catch (err) {
-      console.error("Auth Failure:", err);
-      setStatusOffline(err?.code || err?.message || "Auth error");
+      console.error("Auth Error:", err);
+      alert("فشل الاتصال بالسحابة");
     }
   }
 
-  function startRealtime() {
-    onSnapshot(
-      query(invCol()),
-      (snap) => {
-        inventory = snap.docs.map(d => ({ id: d.id, ...d.data() }))
-          .sort((a, b) => (a.order || 0) - (b.order || 0));
+  function startRealtimeSync() {
+    onSnapshot(query(invCol()), (snap) => {
+      // حماية: لا تقم بإعادة بناء الجدول إذا كان المستخدم يكتب الآن في حقل نصي
+      const isTyping = document.activeElement && 
+                       (document.activeElement.tagName === "INPUT" || document.activeElement.tagName === "TEXTAREA");
+      
+      inventory = snap.docs.map(d => ({ id: d.id, ...d.data() }))
+                       .sort((a, b) => (a.order || 0) - (b.order || 0));
+      
+      if (!isTyping) {
         renderTable();
-      },
-      (err) => {
-        console.error("Firestore snapshot error:", err);
-        setStatusOffline(err?.code || err?.message || "Firestore error");
       }
-    );
+    }, (err) => {
+      console.error("Firestore Error:", err);
+    });
   }
 
-  onAuthStateChanged(auth, (user) => {
-    if (!user) return;
-    currentUser = user;
-    setStatusOnline(user.uid);
-    startRealtime();
-  });
-
   window.updateField = async (id, field, value) => {
-    if (!window.isAdmin()) { window.openAdmin(); return; }
-    if (!currentUser) return;
-
-    const isText = field === "name" || field === "desc";
-    const val = isText ? (value ?? "") : (parseFloat(value) || 0);
-
-    await updateDoc(doc(db, "artifacts", appId, "public", "data", "inventory", id), { [field]: val });
+    if (!window.isAdmin()) return window.openAdmin();
+    try {
+      const isText = ["name", "desc"].includes(field);
+      const val = isText ? value : (parseFloat(value) || 0);
+      await updateDoc(doc(db, "artifacts", appId, "public", "data", "inventory", id), { [field]: val });
+    } catch (err) {
+      alert("حدث خطأ أثناء التحديث: " + err.message);
+    }
   };
 
   window.deleteItem = async (id) => {
-    if (!window.isAdmin()) { window.openAdmin(); return; }
-    if (!confirm("حذف نهائي؟")) return;
-    await deleteDoc(doc(db, "artifacts", appId, "public", "data", "inventory", id));
+    if (!window.isAdmin()) return window.openAdmin();
+    if (!confirm("هل أنت متأكد من الحذف نهائياً؟")) return;
+    try {
+      await deleteDoc(doc(db, "artifacts", appId, "public", "data", "inventory", id));
+    } catch (err) {
+      alert("فشل الحذف");
+    }
   };
 
   function renderTable() {
@@ -238,175 +148,92 @@
     if (!body) return;
 
     body.innerHTML = "";
-    let totalVal = 0, totalSpentCount = 0, lowStock = 0;
+    let totals = { val: 0, spent: 0, low: 0 };
 
-    for (const item of inventory) {
+    inventory.forEach((item) => {
       const start = Number(item.start) || 0;
       const bought = Number(item.bought) || 0;
       const spent = Number(item.spent) || 0;
       const cost = Number(item.cost) || 0;
-
       const remaining = (start + bought) - spent;
       const rowValue = remaining * cost;
 
-      totalVal += rowValue;
-      totalSpentCount += spent;
-      if (remaining <= SETTINGS.lowThreshold) lowStock++;
+      totals.val += rowValue;
+      totals.spent += spent;
+      if (remaining <= SETTINGS.lowThreshold) totals.low++;
 
-      const statusText = remaining <= SETTINGS.lowThreshold ? TEXTS.statusLow : TEXTS.statusOk;
-      const statusClass = remaining <= SETTINGS.lowThreshold ? "text-red-400 font-bold" : "text-emerald-400 font-bold";
+      const isLow = remaining <= SETTINGS.lowThreshold;
+      const isAdmin = window.isAdmin();
 
       const tr = document.createElement("tr");
       tr.className = "border-b border-slate-800 hover:bg-slate-800/40 transition-colors";
-      tr.setAttribute("data-id", item.id);
-
       tr.innerHTML = `
-        <td class="p-2 text-center"><i class="fas fa-grip-vertical handle text-slate-700"></i></td>
-
-        <td class="p-2">
-          <input type="text" value="${esc(item.name)}"
-            onblur="updateField('${item.id}','name',this.value)"
-            class="name-input w-full bg-transparent border-none focus:ring-1 focus:ring-blue-500 font-bold rounded px-2">
-        </td>
-
-        <td class="p-2">
-          <input type="text" value="${esc(item.desc)}"
-            onblur="updateField('${item.id}','desc',this.value)"
-            class="w-full bg-transparent border-none focus:ring-1 focus:ring-blue-500 rounded px-2">
-        </td>
-
+        <td class="p-2 text-center"><i class="fas fa-grip-vertical handle text-slate-700 cursor-move"></i></td>
+        <td class="p-2"><input type="text" value="${esc(item.name)}" onblur="updateField('${item.id}','name',this.value)" ${!isAdmin?'disabled':''} class="w-full bg-transparent border-none focus:ring-1 focus:ring-blue-500 font-bold rounded px-2"></td>
+        <td class="p-2"><input type="text" value="${esc(item.desc)}" onblur="updateField('${item.id}','desc',this.value)" ${!isAdmin?'disabled':''} class="w-full bg-transparent border-none focus:ring-1 focus:ring-blue-500 rounded px-2"></td>
+        <td class="p-2 text-center"><input type="number" value="${start}" onchange="updateField('${item.id}','start',this.value)" ${!isAdmin?'disabled':''} class="w-20 p-1 rounded text-center font-bold text-emerald-300 bg-emerald-500/10 border border-emerald-500/30"></td>
+        <td class="p-2 text-center"><input type="number" value="${bought}" onchange="updateField('${item.id}','bought',this.value)" ${!isAdmin?'disabled':''} class="w-20 p-1 rounded text-center font-bold text-sky-300 bg-sky-500/10 border border-sky-500/30"></td>
+        <td class="p-2 text-center"><input type="number" value="${spent}" onchange="updateField('${item.id}','spent',this.value)" ${!isAdmin?'disabled':''} class="w-20 p-1 rounded text-center font-bold text-orange-300 bg-orange-500/10 border border-orange-500/30"></td>
+        <td class="p-2 text-center font-bold ${isLow ? 'text-red-400' : 'text-slate-200'}">${remaining}</td>
+        <td class="p-2 text-center"><input type="number" value="${cost}" onchange="updateField('${item.id}','cost',this.value)" ${!isAdmin?'disabled':''} class="w-24 p-1 rounded text-center bg-slate-700/30 border border-slate-600"></td>
+        <td class="p-2 text-center font-bold text-blue-400 text-xs">${rowValue.toLocaleString()}</td>
+        <td class="p-2 text-center ${isLow ? 'text-red-400' : 'text-emerald-400'} font-bold">${isLow ? TEXTS.statusLow : TEXTS.statusOk}</td>
         <td class="p-2 text-center">
-          <input type="number" step="any" value="${start}"
-            onchange="updateField('${item.id}','start',this.value)"
-            class="table-input w-20 p-1 rounded text-center font-bold text-emerald-300 bg-emerald-500/10 border border-emerald-500/30">
-        </td>
-
-        <td class="p-2 text-center">
-          <input type="number" step="any" value="${bought}"
-            onchange="updateField('${item.id}','bought',this.value)"
-            class="table-input w-20 p-1 rounded text-center font-bold text-sky-300 bg-sky-500/10 border border-sky-500/30">
-        </td>
-
-        <td class="p-2 text-center">
-          <input type="number" step="any" value="${spent}"
-            onchange="updateField('${item.id}','spent',this.value)"
-            class="table-input w-20 p-1 rounded text-center font-bold text-orange-300 bg-orange-500/10 border border-orange-500/30">
-        </td>
-
-        <td class="p-2 text-center font-bold ${remaining <= SETTINGS.lowThreshold ? "text-red-400" : "text-slate-200"}">${remaining}</td>
-
-        <td class="p-2 text-center">
-          <input type="number" step="any" value="${cost}"
-            onchange="updateField('${item.id}','cost',this.value)"
-            class="table-input w-24 p-1 rounded text-center">
-        </td>
-
-        <td class="p-2 text-center font-bold text-blue-400 text-xs">${Number.isFinite(rowValue) ? rowValue.toLocaleString() : "0"}</td>
-
-        <td class="p-2 text-center ${statusClass}">${statusText}</td>
-
-        <td class="p-2 text-center">
-          <button data-del="1" onclick="deleteItem('${item.id}')" class="text-slate-600 hover:text-red-500 transition-colors">
-            <i class="fas fa-trash-alt"></i>
-          </button>
+          ${isAdmin ? `<button onclick="deleteItem('${item.id}')" class="text-slate-500 hover:text-red-500"><i class="fas fa-trash-alt"></i></button>` : ''}
         </td>
       `;
-
       body.appendChild(tr);
-    }
-
-    if ($("totalValue")) $("totalValue").innerText = totalVal.toLocaleString() + " " + SETTINGS.currency;
-    if ($("totalItems")) $("totalItems").innerText = inventory.length;
-    if ($("lowStockCount")) $("lowStockCount").innerText = lowStock;
-    if ($("totalSpent")) $("totalSpent").innerText = totalSpentCount;
-
-    ensureSortable();
-    refreshAdminUI();
-  }
-
-  function ensureSortable() {
-    if (sortableInited) return;
-    if (typeof Sortable === "undefined") return;
-
-    const tb = $("tableBody");
-    if (!tb) return;
-
-    Sortable.create(tb, {
-      handle: ".handle",
-      animation: 150,
-      onEnd: async () => {
-        if (!window.isAdmin()) { window.openAdmin(); renderTable(); return; }
-        const batch = writeBatch(db);
-        document.querySelectorAll("#tableBody tr").forEach((row, idx) => {
-          const id = row.getAttribute("data-id");
-          if (!id) return;
-          batch.update(doc(db, "artifacts", appId, "public", "data", "inventory", id), { order: idx });
-        });
-        await batch.commit();
-      }
     });
 
-    sortableInited = true;
+    // تحديث البطاقات العلوية
+    if($("totalValue")) $("totalValue").innerText = totals.val.toLocaleString() + " " + SETTINGS.currency;
+    if($("lowStockCount")) $("lowStockCount").innerText = totals.low;
+    if($("totalSpent")) $("totalSpent").innerText = totals.spent;
+    if($("totalItems")) $("totalItems").innerText = inventory.length;
   }
 
-  // ===== Excel =====
+  // ===== Excel Export =====
   window.exportToExcel = () => {
-    if (typeof XLSX === "undefined") return alert("XLSX مو محمّلة");
-    const data = inventory.map(i => {
-      const start = Number(i.start) || 0, bought = Number(i.bought) || 0, spent = Number(i.spent) || 0, cost = Number(i.cost) || 0;
-      const remaining = (start + bought) - spent;
-      const status = remaining <= SETTINGS.lowThreshold ? TEXTS.statusLow : TEXTS.statusOk;
-
-      return {
-        [TEXTS.colName]: i.name || "",
-        [TEXTS.colDesc]: i.desc || "",
-        [TEXTS.colStart]: start,
-        [TEXTS.colBought]: bought,
-        [TEXTS.colSpent]: spent,
-        "المتبقي": remaining,
-        "سعر CC": cost,
-        "القيمة الإجمالية": remaining * cost,
-        "الحالة": status
-      };
-    });
-
+    if (typeof XLSX === "undefined") return alert("مكتبة Excel غير محملة");
+    const data = inventory.map(i => ({
+      [TEXTS.colName]: i.name,
+      [TEXTS.colDesc]: i.desc,
+      [TEXTS.colStart]: i.start,
+      "المتبقي": (Number(i.start) + Number(i.bought)) - Number(i.spent),
+      "القيمة": ((Number(i.start) + Number(i.bought)) - Number(i.spent)) * (Number(i.cost) || 0)
+    }));
     const ws = XLSX.utils.json_to_sheet(data);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Inventory");
-    XLSX.writeFile(wb, `مخزن_د_ثائر_${new Date().toISOString().split("T")[0]}.xlsx`);
+    XLSX.writeFile(wb, `مخزن_${new Date().toLocaleDateString()}.xlsx`);
   };
 
-  // ===== Boot (بعد ما DOM جاهز) =====
-  function boot() {
-    ensureAdminPass();
-    applyTheme();
-    applyTexts();
+  // ===== Start App =====
+  document.addEventListener("DOMContentLoaded", () => {
+    initApp();
     refreshAdminUI();
+    
+    $("addForm")?.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      if (!window.isAdmin()) return window.openAdmin();
+      
+      const newItem = {
+        name: $("name").value,
+        desc: $("desc").value,
+        start: parseFloat($("start").value) || 0,
+        bought: 0,
+        spent: 0,
+        cost: parseFloat($("cost").value) || 0,
+        order: inventory.length,
+        createdAt: Date.now()
+      };
 
-    // إذا الفورم موجود
-    const form = $("addForm");
-    if (form) {
-      form.addEventListener("submit", async (e) => {
-        e.preventDefault();
-        if (!window.isAdmin()) { window.openAdmin(); return; }
-
-        const name = ($("name")?.value || "").trim();
-        const desc = ($("desc")?.value || "").trim();
-        const start = parseFloat($("start")?.value) || 0;
-        const cost = parseFloat($("cost")?.value) || 0;
-        if (!name) return;
-
-        await addDoc(invCol(), { name, desc, start, bought: 0, spent: 0, cost, order: inventory.length, createdAt: Date.now() });
-        form.reset();
-      });
-    }
-
-    initAuth();
-  }
-
-  if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", boot);
-  } else {
-    boot();
-  }
+      try {
+        await addDoc(invCol(), newItem);
+        $("addForm").reset();
+      } catch (err) {
+        alert("فشل إضافة المادة");
+      }
+    });
+  });
 </script>
