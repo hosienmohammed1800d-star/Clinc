@@ -3,49 +3,56 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>مخزن د. ثائر - سحابي</title>
+  <title>مخزن سحابي</title>
 
   <!-- UI libs -->
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/js/all.min.js" crossorigin="anonymous"></script>
 
-  <!-- Excel + Sort -->
+  <!-- Excel + Sortable -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js" crossorigin="anonymous"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/Sortable/1.15.0/Sortable.min.js" crossorigin="anonymous"></script>
 
-  <!-- ✅ Fix: hoisted $ + runAfterDom (prevents "$ before init" forever) -->
+  <!-- ✅ helper (prevents "$ before init" forever) -->
   <script>
     function $(id){ return document.getElementById(id); }
     window.__runAfterDom = function(fn){
-      if (document.readyState === "loading") {
-        document.addEventListener("DOMContentLoaded", fn, { once:true });
-      } else {
-        fn();
-      }
+      if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", fn, {once:true});
+      else fn();
     };
   </script>
 
   <style>
     body { font-family: system-ui,-apple-system,"Segoe UI",Tahoma; margin:0; }
     .glass { background: rgba(30, 41, 59, 0.65); backdrop-filter: blur(10px); border: 1px solid rgba(255,255,255,0.08); }
-    input, select {
+    input, select, textarea {
       background: rgba(15,23,42,0.6)!important;
       border: 1px solid rgba(255,255,255,0.10)!important;
       color: #fff!important;
     }
-    input:focus, select:focus { outline:none; border-color: var(--accent, #3b82f6)!important; background: rgba(30,41,59,0.9)!important; }
+    input:focus, select:focus, textarea:focus {
+      outline:none;
+      border-color: var(--accent, #3b82f6)!important;
+      background: rgba(30,41,59,0.9)!important;
+    }
     th { background:#1e293b!important; color:#94a3b8!important; white-space:nowrap; font-size:0.8rem; }
     .handle { cursor: grab; color:#64748b; padding: 10px; }
     .status-online { color:#10b981; }
     .status-offline { color:#f87171; font-weight:700; }
     .status-connecting { color:#fbbf24; }
+    .pill { border:1px solid rgba(255,255,255,0.10); background:rgba(255,255,255,0.04); }
 
+    /* Mobile */
     @media (max-width: 768px) {
       .table-container { font-size: 13px; }
-      input.table-input { width: 64px !important; padding: 4px !important; font-size: 12px; }
+      input.table-input { width: 72px !important; padding: 4px !important; font-size: 12px; }
       .name-input { width: 120px !important; }
       .desc-input { width: 140px !important; }
     }
+
+    /* Modal */
+    .modal-backdrop{ position:fixed; inset:0; background: rgba(0,0,0,0.55); display:none; z-index:50; }
+    .modal{ max-width: 1100px; width: calc(100% - 24px); margin: 24px auto; border-radius: 16px; overflow:hidden; }
   </style>
 </head>
 
@@ -53,7 +60,7 @@
   <div class="max-w-7xl mx-auto p-4 md:p-6">
 
     <!-- Header -->
-    <header class="flex flex-col md:flex-row justify-between items-center mb-6 gap-4">
+    <header class="flex flex-col md:flex-row justify-between items-center mb-4 gap-4">
       <div class="flex items-center gap-4 w-full md:w-auto">
         <div class="w-12 h-12 rounded-xl flex items-center justify-center shadow-lg" style="background:var(--accent,#3b82f6)">
           <i class="fas fa-cloud text-2xl text-white"></i>
@@ -71,85 +78,95 @@
       </div>
 
       <div class="flex gap-2 w-full md:w-auto overflow-x-auto pb-2 md:pb-0">
-        <button onclick="downloadAppFile()" class="text-white px-4 py-2 rounded-lg flex items-center gap-2 text-sm whitespace-nowrap shadow-lg transition-all active:scale-95" style="background:var(--accent,#3b82f6)">
-          <i class="fas fa-download"></i> <span id="btnDownloadTxt">تحميل النظام (HTML)</span>
+        <button id="btnAdminLoginToggle" class="px-4 py-2 rounded-lg text-sm text-white shadow-lg" style="background:var(--accent,#3b82f6)">
+          <i class="fas fa-user-shield"></i> أدمن
         </button>
+
+        <button id="btnSchema" class="px-4 py-2 rounded-lg text-sm text-white shadow-lg bg-slate-700 hover:bg-slate-600">
+          <i class="fas fa-table-columns"></i> بناء الجدول
+        </button>
+
+        <button onclick="downloadAppFile()" class="text-white px-4 py-2 rounded-lg flex items-center gap-2 text-sm whitespace-nowrap shadow-lg transition-all active:scale-95" style="background:var(--accent,#3b82f6)">
+          <i class="fas fa-download"></i> <span id="btnDownloadTxt">تحميل HTML</span>
+        </button>
+
         <button onclick="exportToExcel()" class="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 text-sm whitespace-nowrap shadow-lg">
           <i class="fas fa-file-excel"></i> <span id="btnExportTxt">تصدير إكسل</span>
         </button>
       </div>
     </header>
 
-    <!-- Settings Panel -->
-    <div class="glass rounded-xl p-4 mb-6">
-      <div class="flex flex-col md:flex-row gap-3 items-start md:items-center justify-between">
-        <div class="flex items-center gap-2">
-          <i class="fas fa-sliders text-slate-300"></i>
-          <h2 class="font-bold">الإعدادات</h2>
+    <!-- Top Controls -->
+    <div class="glass rounded-xl p-4 mb-4">
+      <div class="grid grid-cols-1 md:grid-cols-4 gap-3 items-center">
+        <div class="md:col-span-2">
+          <div class="flex gap-2 items-center">
+            <i class="fas fa-magnifying-glass text-slate-300"></i>
+            <input id="searchBox" class="w-full p-2 rounded-lg text-sm" placeholder="بحث بالمادة/الوصف..." />
+          </div>
         </div>
 
-        <div class="flex flex-wrap gap-2 items-center">
-          <select id="themeSelect" class="p-2 rounded-lg text-sm">
-            <option value="midnight">Midnight</option>
-            <option value="slate">Slate</option>
-            <option value="ivory">Ivory</option>
-            <option value="ocean">Ocean</option>
-            <option value="berry">Berry</option>
-          </select>
+        <div>
+          <select id="sortCol" class="w-full p-2 rounded-lg text-sm"></select>
+        </div>
 
-          <button id="saveUiBtn" class="bg-slate-100 hover:bg-white text-slate-900 px-4 py-2 rounded-lg text-sm font-bold">
-            حفظ الإعدادات
+        <div class="flex gap-2">
+          <button id="sortDirBtn" class="w-full px-4 py-2 rounded-lg text-sm text-white bg-slate-700 hover:bg-slate-600">
+            <i class="fas fa-arrow-down-wide-short"></i> تنازلي
+          </button>
+          <button id="lowOnlyBtn" class="w-full px-4 py-2 rounded-lg text-sm text-white bg-slate-700 hover:bg-slate-600">
+            <i class="fas fa-triangle-exclamation"></i> النواقص
           </button>
         </div>
       </div>
 
-      <div class="grid grid-cols-1 md:grid-cols-4 gap-3 mt-3">
-        <input id="txtTitle" class="p-2 rounded-lg text-sm" placeholder="عنوان التطبيق" />
-        <input id="txtAdd" class="p-2 rounded-lg text-sm" placeholder="نص زر الإضافة" />
-        <input id="txtExport" class="p-2 rounded-lg text-sm" placeholder="نص زر التصدير" />
-        <input id="txtDownload" class="p-2 rounded-lg text-sm" placeholder="نص زر التحميل" />
-      </div>
-
-      <div class="mt-3 flex flex-col md:flex-row gap-2 items-start md:items-center justify-between">
-        <div class="text-xs text-slate-400">
-          ✅ القراءة للجميع. ✏️ التعديل للأدمن فقط (مع تسجيل دخول).
+      <div class="mt-3 flex flex-wrap gap-2 items-center justify-between">
+        <div class="text-xs text-slate-300">
+          <span class="pill px-2 py-1 rounded-lg">قراءة للجميع</span>
+          <span class="pill px-2 py-1 rounded-lg">التعديل للأدمن فقط</span>
+          <span class="pill px-2 py-1 rounded-lg">الصور: Image URL</span>
         </div>
 
-        <div class="flex gap-2 items-center">
-          <button id="adminToggleBtn" class="px-4 py-2 rounded-lg text-sm text-white" style="background:var(--accent,#3b82f6)">
-            دخول أدمن
+        <div class="flex gap-2 items-center text-xs">
+          <span class="text-slate-400">عتبة النقص:</span>
+          <input id="lowThreshold" type="number" class="w-24 p-2 rounded-lg text-sm text-center" value="2" />
+          <button id="saveSettingsBtn" class="px-4 py-2 rounded-lg text-sm font-bold bg-slate-100 hover:bg-white text-slate-900">
+            حفظ
           </button>
-          <button id="adminLogoutBtn" class="bg-slate-700 hover:bg-slate-600 text-white px-4 py-2 rounded-lg text-sm hidden">
-            خروج
-          </button>
-          <span id="adminState" class="text-xs text-slate-300">زائر</span>
+          <span id="adminState" class="text-slate-300">زائر</span>
         </div>
       </div>
 
+      <!-- Admin login box -->
       <div id="adminBox" class="mt-3 hidden grid grid-cols-1 md:grid-cols-3 gap-3">
         <input id="adminEmail" class="p-2 rounded-lg text-sm" placeholder="Admin Email" />
         <input id="adminPass" type="password" class="p-2 rounded-lg text-sm" placeholder="Admin Password" />
-        <button id="doAdminLogin" class="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-lg text-sm font-bold">
-          تسجيل دخول
-        </button>
+        <div class="flex gap-2">
+          <button id="doAdminLogin" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-lg text-sm font-bold">
+            دخول
+          </button>
+          <button id="doAdminLogout" class="w-full bg-slate-700 hover:bg-slate-600 text-white px-4 py-2 rounded-lg text-sm font-bold hidden">
+            خروج
+          </button>
+        </div>
         <div class="md:col-span-3 text-xs text-slate-400">
-          الأفضل تسوي حساب أدمن من Firebase Authentication (Email/Password) وتستخدمه هنا.
+          ملاحظة: كلمة المرور ما تنخزن بالمتصفح. تسجيل دخول Firebase فقط.
         </div>
       </div>
     </div>
 
     <!-- Stats -->
-    <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
       <div class="glass p-4 rounded-xl">
         <p class="text-slate-400 text-[10px] md:text-xs mb-1">إجمالي القيمة المالية</p>
-        <h3 id="totalValue" class="text-sm md:text-lg font-bold text-blue-400">0 د.ع</h3>
+        <h3 id="totalValue" class="text-sm md:text-lg font-bold text-blue-400">0</h3>
       </div>
       <div class="glass p-4 rounded-xl">
         <p class="text-slate-400 text-[10px] md:text-xs mb-1">عدد المواد</p>
         <h3 id="totalItems" class="text-sm md:text-lg font-bold">0</h3>
       </div>
       <div class="glass p-4 rounded-xl border-r-4 border-red-500">
-        <p class="text-slate-400 text-[10px] md:text-xs mb-1">نواقص (≤ 2)</p>
+        <p class="text-slate-400 text-[10px] md:text-xs mb-1">نواقص</p>
         <h3 id="lowStockCount" class="text-sm md:text-lg font-bold text-red-400">0</h3>
       </div>
       <div class="glass p-4 rounded-xl border-r-4 border-emerald-500">
@@ -158,31 +175,17 @@
       </div>
     </div>
 
-    <!-- Add -->
-    <div class="glass p-4 rounded-xl mb-6">
-      <form id="addForm" class="grid grid-cols-2 md:grid-cols-5 gap-3">
-        <div class="col-span-2 md:col-span-1">
-          <input type="text" id="name" class="w-full p-2 rounded-lg text-sm" placeholder="المادة..." required />
+    <!-- Add Form (dynamic) -->
+    <div class="glass p-4 rounded-xl mb-4">
+      <div class="flex items-center justify-between mb-2">
+        <div class="font-bold flex items-center gap-2">
+          <i class="fas fa-plus"></i>
+          <span>إضافة مادة</span>
         </div>
+        <div class="text-xs text-slate-400" id="addHint">حقول الإضافة تتحدد من “بناء الجدول”.</div>
+      </div>
 
-        <div class="col-span-2 md:col-span-2">
-          <input type="text" id="desc" class="w-full p-2 rounded-lg text-sm" placeholder="الوصف..." />
-        </div>
-
-        <div>
-          <input type="number" id="start" class="w-full p-2 rounded-lg text-sm" placeholder="البداية" step="any" />
-        </div>
-
-        <div>
-          <input type="number" id="cost" class="w-full p-2 rounded-lg text-sm" placeholder="سعر CC" step="any" />
-        </div>
-
-        <div class="col-span-2 md:col-span-5">
-          <button type="submit" id="addBtn" class="w-full bg-slate-100 hover:bg-white text-slate-900 py-2 rounded-lg font-bold text-sm shadow-lg active:scale-95 transition-all">
-            إضافة مادة <i class="fas fa-plus mr-1"></i>
-          </button>
-        </div>
-      </form>
+      <form id="addForm" class="grid grid-cols-2 md:grid-cols-6 gap-3"></form>
     </div>
 
     <!-- Table -->
@@ -190,22 +193,70 @@
       <div class="overflow-x-auto table-container">
         <table class="w-full text-right border-collapse">
           <thead>
-            <tr class="border-b border-slate-700">
-              <th class="p-3 text-center w-8">#</th>
-              <th class="p-3">المادة</th>
-              <th class="p-3">الوصف</th>
-              <th class="p-3 text-center text-emerald-300">البداية</th>
-              <th class="p-3 text-center text-sky-300">مشتريات</th>
-              <th class="p-3 text-center text-orange-300">مصروف</th>
-              <th class="p-3 text-center">المتبقي</th>
-              <th class="p-3 text-center">سعر CC</th>
-              <th class="p-3 text-center">القيمة الإجمالية</th>
-              <th class="p-3 text-center">الحالة</th>
-              <th class="p-3 text-center">حذف</th>
-            </tr>
+            <tr class="border-b border-slate-700" id="theadRow"></tr>
           </thead>
           <tbody id="tableBody"></tbody>
         </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- Schema Builder Modal -->
+  <div id="schemaModal" class="modal-backdrop">
+    <div class="modal glass">
+      <div class="p-4 border-b border-slate-700 flex items-center justify-between">
+        <div class="font-bold flex items-center gap-2">
+          <i class="fas fa-table-columns"></i>
+          <span>بناء الجدول (Dynamic Columns)</span>
+        </div>
+        <div class="flex gap-2">
+          <button id="addColBtn" class="px-4 py-2 rounded-lg text-sm font-bold bg-slate-100 hover:bg-white text-slate-900">
+            + عمود
+          </button>
+          <button id="closeSchemaBtn" class="px-4 py-2 rounded-lg text-sm text-white bg-slate-700 hover:bg-slate-600">
+            إغلاق
+          </button>
+        </div>
+      </div>
+
+      <div class="p-4">
+        <div class="text-xs text-slate-400 mb-3">
+          اسحب العمود لتغيير الترتيب. تقدر تغيّر الاسم/النوع/إظهار بالجدول/إظهار بالإضافة/إظهار بالتصدير.
+        </div>
+
+        <div class="overflow-x-auto">
+          <table class="w-full border-collapse">
+            <thead>
+              <tr class="border-b border-slate-700">
+                <th class="p-2 text-center w-10">#</th>
+                <th class="p-2">الاسم</th>
+                <th class="p-2">المعرّف</th>
+                <th class="p-2">النوع</th>
+                <th class="p-2 text-center">الجدول</th>
+                <th class="p-2 text-center">الإضافة</th>
+                <th class="p-2 text-center">التصدير</th>
+                <th class="p-2 text-center">عرض</th>
+                <th class="p-2 text-center">لون</th>
+                <th class="p-2 text-center">حذف</th>
+              </tr>
+            </thead>
+            <tbody id="schemaBody"></tbody>
+          </table>
+        </div>
+
+        <div class="mt-4 flex flex-col md:flex-row gap-2 justify-between items-start md:items-center">
+          <div class="text-xs text-slate-400">
+            الأعمدة المحسوبة: <span class="pill px-2 py-1 rounded-lg">المتبقي</span>
+            <span class="pill px-2 py-1 rounded-lg">القيمة الإجمالية</span>
+            <span class="pill px-2 py-1 rounded-lg">الحالة</span>
+          </div>
+
+          <div class="flex gap-2">
+            <button id="saveSchemaBtn" class="px-6 py-2 rounded-lg text-sm font-bold bg-emerald-600 hover:bg-emerald-700 text-white">
+              حفظ البناء
+            </button>
+          </div>
+        </div>
       </div>
     </div>
   </div>
@@ -230,10 +281,12 @@
       onSnapshot,
       query,
       writeBatch,
-      serverTimestamp
+      serverTimestamp,
+      getDoc,
+      setDoc
     } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-firestore.js";
 
-    // ✅ Firebase config
+    // ✅ Firebase config (YOUR PROJECT)
     const firebaseConfig = {
       apiKey: "AIzaSyC_KaWOZVWJ5WvVhUjiz58dx6d6sWH1EZQ",
       authDomain: "clinic-storage.firebaseapp.com",
@@ -243,169 +296,633 @@
       appId: "1:284636281654:web:aa19cd577c4efda5d21197"
     };
 
+    // ✅ Shared appId
     const appId = "clinic-storage";
 
-    // ========= UI Settings =========
+    // ========= Theme + Text =========
     const THEMES = {
-      midnight: { bg: "#0f172a", accent: "#3b82f6", card: "rgba(30,41,59,0.65)", text:"#e2e8f0" },
-      slate:    { bg: "#0b1220", accent: "#22c55e", card: "rgba(15,23,42,0.70)", text:"#e2e8f0" },
-      ivory:    { bg: "#f8fafc", accent: "#2563eb", card: "rgba(255,255,255,0.82)", text:"#0f172a" },
-      ocean:    { bg: "#071a2b", accent: "#38bdf8", card: "rgba(56,189,248,0.10)", text:"#e2e8f0" },
-      berry:    { bg: "#160b1f", accent: "#a78bfa", card: "rgba(167,139,250,0.10)", text:"#e2e8f0" }
+      midnight: { bg:"#0f172a", text:"#e2e8f0", accent:"#3b82f6", card:"rgba(30,41,59,0.65)" },
+      slate:    { bg:"#0b1220", text:"#e2e8f0", accent:"#22c55e", card:"rgba(15,23,42,0.70)" },
+      ivory:    { bg:"#f8fafc", text:"#0f172a", accent:"#2563eb", card:"rgba(255,255,255,0.82)" },
+      ocean:    { bg:"#071a2b", text:"#e2e8f0", accent:"#38bdf8", card:"rgba(56,189,248,0.10)" },
+      berry:    { bg:"#160b1f", text:"#e2e8f0", accent:"#a78bfa", card:"rgba(167,139,250,0.10)" },
     };
 
-    const DEFAULT_TEXTS = {
-      appTitle: "مخزن د. ثائر السحابي",
-      addButton: "إضافة مادة",
-      exportButton: "تصدير إكسل",
-      downloadButton: "تحميل النظام (HTML)"
-    };
-
-    const LOCAL_KEY = "clinic_ui_settings_v2";
-
-    function getLocalSettings(){
-      try {
-        return JSON.parse(localStorage.getItem(LOCAL_KEY) || "null") || { theme:"midnight", texts:{...DEFAULT_TEXTS} };
-      } catch {
-        return { theme:"midnight", texts:{...DEFAULT_TEXTS} };
+    const LOCAL_UI_KEY = "clinic_dynamic_ui_v1";
+    const DEFAULT_UI = {
+      theme: "midnight",
+      texts: {
+        title: "مخزن د. ثائر السحابي",
+        download: "تحميل HTML",
+        export: "تصدير إكسل",
+        statusOk: "متوفر",
+        statusLow: "نقص",
+        currency: "د.ع"
       }
-    }
-    function saveLocalSettings(s){ localStorage.setItem(LOCAL_KEY, JSON.stringify(s)); }
+    };
 
-    function applyTheme(themeId){
-      const t = THEMES[themeId] || THEMES.midnight;
+    function getUi(){
+      try { return JSON.parse(localStorage.getItem(LOCAL_UI_KEY) || "null") || structuredClone(DEFAULT_UI); }
+      catch { return structuredClone(DEFAULT_UI); }
+    }
+    function saveUi(u){ localStorage.setItem(LOCAL_UI_KEY, JSON.stringify(u)); }
+
+    function applyUi(){
+      const u = getUi();
+      const t = THEMES[u.theme] || THEMES.midnight;
       document.body.style.background = t.bg;
       document.body.style.color = t.text;
       document.documentElement.style.setProperty("--accent", t.accent);
+      document.querySelectorAll(".glass").forEach(el => el.style.background = t.card);
 
-      document.querySelectorAll(".glass").forEach(el=>{
-        el.style.background = t.card;
-        el.style.borderColor = "rgba(255,255,255,0.08)";
-      });
+      $("appTitle").textContent = u.texts.title;
+      $("btnDownloadTxt").textContent = u.texts.download;
+      $("btnExportTxt").textContent = u.texts.export;
     }
 
-    function applyTexts(texts){
-      $("appTitle").textContent = texts.appTitle || DEFAULT_TEXTS.appTitle;
-      $("btnDownloadTxt").textContent = texts.downloadButton || DEFAULT_TEXTS.downloadButton;
-      $("btnExportTxt").textContent = texts.exportButton || DEFAULT_TEXTS.exportButton;
-      $("addBtn").innerHTML = `${texts.addButton || DEFAULT_TEXTS.addButton} <i class="fas fa-plus mr-1"></i>`;
-    }
+    // ========= Schema + Settings =========
+    // types: text, number, image, computed
+    // computed keys: remaining, totalValue, status
+    const DEFAULT_SCHEMA = {
+      version: 1,
+      columns: [
+        { id:"__drag", label:"#", type:"drag", visible:true, inAdd:false, export:false, width: 50 },
 
-    function applyLocalSettings(){
-      const s = getLocalSettings();
-      applyTheme(s.theme);
-      applyTexts(s.texts);
+        { id:"name", label:"المادة", type:"text", visible:true, inAdd:true, export:true, width: 180, required:true },
+        { id:"desc", label:"الوصف", type:"text", visible:true, inAdd:true, export:true, width: 220 },
 
-      $("themeSelect").value = s.theme;
-      $("txtTitle").value = s.texts.appTitle || "";
-      $("txtAdd").value = s.texts.addButton || "";
-      $("txtExport").value = s.texts.exportButton || "";
-      $("txtDownload").value = s.texts.downloadButton || "";
-    }
+        { id:"start", label:"البداية", type:"number", visible:true, inAdd:true, export:true, width: 110, color:"emerald" },
+        { id:"bought", label:"مشتريات", type:"number", visible:true, inAdd:false, export:true, width: 110, color:"sky" },
+        { id:"spent", label:"مصروف", type:"number", visible:true, inAdd:false, export:true, width: 110, color:"orange" },
+
+        { id:"image", label:"صورة", type:"image", visible:false, inAdd:false, export:true, width: 120 },
+
+        { id:"remaining", label:"المتبقي", type:"computed", key:"remaining", visible:true, inAdd:false, export:true, width: 110 },
+        { id:"cost", label:"سعر CC", type:"number", visible:true, inAdd:true, export:true, width: 110 },
+
+        { id:"totalValue", label:"القيمة الإجمالية", type:"computed", key:"totalValue", visible:true, inAdd:false, export:true, width: 140 },
+        { id:"status", label:"الحالة", type:"computed", key:"status", visible:true, inAdd:false, export:true, width: 90 },
+        { id:"__delete", label:"حذف", type:"delete", visible:true, inAdd:false, export:false, width: 60 }
+      ]
+    };
+
+    const DEFAULT_SETTINGS = {
+      lowThreshold: 2,
+      defaultSort: "name",
+      defaultSortDir: "desc",
+      showLowOnly: false
+    };
 
     // ========= Firebase =========
     const app = initializeApp(firebaseConfig);
     const auth = getAuth(app);
     const db = getFirestore(app);
 
-    let inventory = [];
-    let sortableInited = false;
+    // Paths:
+    // inventory: artifacts/{appId}/public/data/inventory (collection)
+    // meta schema: artifacts/{appId}/public/data/meta/schema (doc)
+    // meta settings: artifacts/{appId}/public/data/meta/settings (doc)
+    const invCol = () => collection(db, "artifacts", appId, "public", "data", "inventory");
+    const schemaRef = () => doc(db, "artifacts", appId, "public", "data", "meta", "schema");
+    const settingsRef = () => doc(db, "artifacts", appId, "public", "data", "meta", "settings");
+
     let isAdmin = false;
+    let currentUser = null;
+    let inventory = [];
+
+    let schema = structuredClone(DEFAULT_SCHEMA);
+    let settings = structuredClone(DEFAULT_SETTINGS);
+
+    let sortableRowsInited = false;
+    let sortableSchemaInited = false;
+
+    let searchTerm = "";
+    let sortColId = DEFAULT_SETTINGS.defaultSort;
+    let sortDir = DEFAULT_SETTINGS.defaultSortDir; // "asc" | "desc"
+    let showLowOnly = DEFAULT_SETTINGS.showLowOnly;
 
     const esc = (v) => String(v ?? "").replace(/"/g, "&quot;");
-
-    function invCol(){
-      return collection(db, "artifacts", appId, "public", "data", "inventory");
-    }
 
     function setStatus(cls, htmlOrText){
       const s = $("syncStatus");
       s.className = cls;
-      if (htmlOrText.includes("<")) s.innerHTML = htmlOrText;
+      if ((htmlOrText || "").includes("<")) s.innerHTML = htmlOrText;
       else s.textContent = htmlOrText;
     }
 
-    function setAdminUI(state, email=""){
+    function setAdminUI(state){
       isAdmin = state;
+      $("adminState").textContent = state ? "أدمن" : "زائر";
+      $("doAdminLogout").classList.toggle("hidden", !state);
 
-      $("adminState").textContent = state ? `أدمن: ${email || ""}` : "زائر";
-      $("adminLogoutBtn").classList.toggle("hidden", !state);
+      // Admin-only controls:
+      $("btnSchema").disabled = !state;
+      $("btnSchema").style.opacity = state ? "1" : "0.6";
 
-      // disable edits if not admin
-      document.querySelectorAll("#tableBody input, #addForm input, #addForm button[type='submit']").forEach(el=>{
-        el.disabled = !isAdmin;
-        el.style.opacity = isAdmin ? "1" : "0.75";
+      // Add form inputs + submit
+      document.querySelectorAll("#addForm input, #addForm button").forEach(el=>{
+        el.disabled = !state;
+        el.style.opacity = state ? "1" : "0.75";
       });
-      document.querySelectorAll("#tableBody button").forEach(btn=>{
-        btn.disabled = !isAdmin;
-        btn.style.opacity = isAdmin ? "1" : "0.5";
-        btn.style.pointerEvents = isAdmin ? "auto" : "none";
+
+      // Table inputs + delete
+      document.querySelectorAll("#tableBody input, #tableBody textarea, #tableBody button").forEach(el=>{
+        el.disabled = !state;
+        el.style.opacity = state ? "1" : "0.6";
+        if (el.tagName === "BUTTON") el.style.pointerEvents = state ? "auto" : "none";
       });
     }
 
-    // ========= UI events =========
-    $("themeSelect").addEventListener("change", ()=>{
-      const s = getLocalSettings();
-      s.theme = $("themeSelect").value;
-      saveLocalSettings(s);
-      applyLocalSettings();
-    });
+    // ======= Computed helpers =======
+    function getVal(item, colId){
+      const v = (item.values && Object.prototype.hasOwnProperty.call(item.values, colId)) ? item.values[colId] : undefined;
+      if (v !== undefined) return v;
 
-    $("saveUiBtn").addEventListener("click", ()=>{
-      const s = getLocalSettings();
-      s.texts = {
-        appTitle: $("txtTitle").value.trim() || DEFAULT_TEXTS.appTitle,
-        addButton: $("txtAdd").value.trim() || DEFAULT_TEXTS.addButton,
-        exportButton: $("txtExport").value.trim() || DEFAULT_TEXTS.exportButton,
-        downloadButton: $("txtDownload").value.trim() || DEFAULT_TEXTS.downloadButton
-      };
-      saveLocalSettings(s);
-      applyLocalSettings();
-    });
+      // legacy fallback
+      if (Object.prototype.hasOwnProperty.call(item, colId)) return item[colId];
+      return undefined;
+    }
 
-    $("adminToggleBtn").addEventListener("click", ()=>{
-      $("adminBox").classList.toggle("hidden");
-      $("adminBox").classList.toggle("grid");
-    });
+    function num(x){ return Number(x) || 0; }
 
-    $("doAdminLogin").addEventListener("click", async ()=>{
-      const email = $("adminEmail").value.trim();
-      const pass  = $("adminPass").value.trim();
-      if (!email || !pass) return alert("اكتب الإيميل والباسورد");
-      try {
-        const cred = await signInWithEmailAndPassword(auth, email, pass);
-        setAdminUI(true, cred.user.email || "");
-      } catch (e) {
-        console.error(e);
-        alert("فشل تسجيل دخول الأدمن");
+    function compute(item, col){
+      const u = getUi();
+      const threshold = Number(settings.lowThreshold) || 2;
+      const start = num(getVal(item, "start"));
+      const bought = num(getVal(item, "bought"));
+      const spent = num(getVal(item, "spent"));
+      const cost = num(getVal(item, "cost"));
+      const remaining = (start + bought) - spent;
+
+      if (col.key === "remaining") return remaining;
+      if (col.key === "totalValue") return remaining * cost;
+      if (col.key === "status") return (remaining <= threshold) ? (u.texts.statusLow || "نقص") : (u.texts.statusOk || "متوفر");
+      return "";
+    }
+
+    function isLow(item){
+      const threshold = Number(settings.lowThreshold) || 2;
+      const remaining = num(compute(item, {key:"remaining"}));
+      return remaining <= threshold;
+    }
+
+    // ======= Render: header + add form + table =======
+    function visibleCols(){
+      // Hide special columns if not needed
+      return (schema.columns || []).filter(c => c.visible !== false);
+    }
+
+    function dataColsForAdd(){
+      return (schema.columns || []).filter(c => c.inAdd && !["drag","delete","computed"].includes(c.type) && !c.id.startsWith("__"));
+    }
+
+    function exportCols(){
+      return (schema.columns || []).filter(c => c.export && c.type !== "drag" && c.type !== "delete");
+    }
+
+    function rebuildSortSelect(){
+      const sel = $("sortCol");
+      sel.innerHTML = "";
+      const cols = (schema.columns || []).filter(c => !c.id.startsWith("__") || c.type === "computed");
+      cols.forEach(c=>{
+        const opt = document.createElement("option");
+        opt.value = c.id;
+        opt.textContent = `فرز حسب: ${c.label || c.id}`;
+        sel.appendChild(opt);
+      });
+      // keep selection if possible
+      sel.value = sortColId || settings.defaultSort || "name";
+      if (!sel.value) sel.value = "name";
+    }
+
+    function renderAddForm(){
+      const form = $("addForm");
+      form.innerHTML = "";
+
+      const cols = dataColsForAdd();
+      if (!cols.length){
+        $("addHint").textContent = "حدد حقول الإضافة من “بناء الجدول”.";
+        return;
       }
-    });
+      $("addHint").textContent = isAdmin ? "أدخل البيانات واضغط إضافة." : "التعديل للأدمن فقط.";
 
-    $("adminLogoutBtn").addEventListener("click", async ()=>{
-      await signOut(auth);
-    });
+      cols.forEach(c=>{
+        const wrap = document.createElement("div");
+        wrap.className = "col-span-2 md:col-span-2";
 
-    // ========= Realtime =========
-    function startRealtime(){
-      const q = query(invCol());
-      onSnapshot(q, (snap)=>{
-        inventory = snap.docs.map(d=>({id:d.id, ...d.data()})).sort((a,b)=>(a.order||0)-(b.order||0));
-        renderTable();
-      }, (err)=>{
-        console.error(err);
-        setStatus("status-offline", "فشل الاتصال: " + (err?.code || err?.message || "Firestore error"));
+        if (c.type === "number") wrap.className = "col-span-1";
+        if (c.id === "name") wrap.className = "col-span-2 md:col-span-2";
+        if (c.id === "desc") wrap.className = "col-span-2 md:col-span-3";
+
+        const input = document.createElement("input");
+        input.id = "add_" + c.id;
+        input.className = "w-full p-2 rounded-lg text-sm";
+        input.placeholder = c.label || c.id;
+        input.disabled = !isAdmin;
+
+        if (c.type === "number"){
+          input.type = "number";
+          input.step = "any";
+        } else {
+          input.type = "text";
+        }
+        if (c.required) input.required = true;
+
+        wrap.appendChild(input);
+        form.appendChild(wrap);
+      });
+
+      // submit
+      const btnWrap = document.createElement("div");
+      btnWrap.className = "col-span-2 md:col-span-6";
+      btnWrap.innerHTML = `
+        <button ${isAdmin ? "" : "disabled"} type="submit"
+          class="w-full bg-slate-100 hover:bg-white text-slate-900 py-2 rounded-lg font-bold text-sm shadow-lg active:scale-95 transition-all">
+          إضافة مادة <i class="fas fa-plus mr-1"></i>
+        </button>
+      `;
+      form.appendChild(btnWrap);
+    }
+
+    function renderHeader(){
+      const tr = $("theadRow");
+      tr.innerHTML = "";
+
+      visibleCols().forEach(c=>{
+        const th = document.createElement("th");
+        th.className = "p-3";
+        if (c.id === "__drag") th.className = "p-3 text-center w-8";
+        if (c.id === "__delete") th.className = "p-3 text-center w-12";
+        if (c.width) th.style.width = c.width + "px";
+
+        // Color hints for common columns
+        if (c.id === "start") th.className += " text-emerald-300";
+        if (c.id === "bought") th.className += " text-sky-300";
+        if (c.id === "spent") th.className += " text-orange-300";
+
+        th.textContent = c.label || c.id;
+        tr.appendChild(th);
       });
     }
 
+    function styleByColor(color){
+      // tailwind-ish tokens
+      if (color === "emerald") return "text-emerald-300 bg-emerald-500/10 border border-emerald-500/30";
+      if (color === "sky")     return "text-sky-300 bg-sky-500/10 border border-sky-500/30";
+      if (color === "orange")  return "text-orange-300 bg-orange-500/10 border border-orange-500/30";
+      if (color === "red")     return "text-red-300 bg-red-500/10 border border-red-500/30";
+      if (color === "violet")  return "text-violet-300 bg-violet-500/10 border border-violet-500/30";
+      return "";
+    }
+
+    function renderCell(item, col){
+      const id = item.id;
+      const u = getUi();
+
+      // Special columns
+      if (col.type === "drag"){
+        return `<td class="p-2 text-center"><i class="fas fa-grip-vertical handle"></i></td>`;
+      }
+      if (col.type === "delete"){
+        return `
+          <td class="p-2 text-center">
+            <button ${isAdmin ? "" : "disabled"} onclick="deleteItem('${id}')"
+              class="text-slate-500 hover:text-red-500 transition-colors">
+              <i class="fas fa-trash-alt"></i>
+            </button>
+          </td>`;
+      }
+
+      // Computed
+      if (col.type === "computed"){
+        const v = compute(item, col);
+        let cls = "text-slate-200 font-bold";
+        if (col.key === "status") cls = isLow(item) ? "text-red-400 font-bold" : "text-emerald-400 font-bold";
+        if (col.key === "totalValue") cls = "text-blue-400 font-bold text-xs";
+        if (col.key === "remaining") cls = isLow(item) ? "text-red-400 font-bold" : "text-slate-200 font-bold";
+
+        const show = (typeof v === "number") ? v : v;
+        const text = (typeof show === "number") ? show : show;
+
+        return `<td class="p-2 text-center ${cls}">${(typeof text === "number") ? text : esc(text)}</td>`;
+      }
+
+      // Normal fields
+      const raw = getVal(item, col.id);
+
+      if (col.type === "image"){
+        const url = String(raw || "").trim();
+        const thumb = url ? `<img src="${esc(url)}" alt="" class="w-12 h-12 object-cover rounded-lg mx-auto border border-white/10" />` :
+                            `<div class="w-12 h-12 rounded-lg mx-auto border border-white/10 bg-white/5 flex items-center justify-center text-slate-400 text-xs">لا يوجد</div>`;
+        const inp = `
+          <input ${isAdmin?"":"disabled"} type="text" value="${esc(url)}"
+            onblur="updateField('${id}','${col.id}',this.value)"
+            class="table-input w-40 p-1 rounded text-center text-xs mt-1" placeholder="Image URL">`;
+        return `<td class="p-2 text-center">${thumb}${inp}</td>`;
+      }
+
+      if (col.type === "number"){
+        const v = Number(raw) || 0;
+        const extra = styleByColor(col.color);
+        return `
+          <td class="p-2 text-center">
+            <input ${isAdmin?"":"disabled"} type="number" step="any" value="${v}"
+              onchange="updateField('${id}','${col.id}',this.value)"
+              class="table-input w-20 p-1 rounded text-center font-bold ${extra}">
+          </td>`;
+      }
+
+      // text default
+      const txt = String(raw ?? "");
+      const wClass = (col.id === "name") ? "name-input w-full" : "desc-input w-full";
+      const ph = col.label || col.id;
+      return `
+        <td class="p-2">
+          <input ${isAdmin?"":"disabled"} type="text" value="${esc(txt)}"
+            onblur="updateField('${id}','${col.id}',this.value)"
+            class="${wClass} bg-transparent border-none focus:ring-1 focus:ring-blue-500 rounded px-2"
+            placeholder="${esc(ph)}">
+        </td>`;
+    }
+
+    function sortValue(item, colId){
+      const col = (schema.columns || []).find(c=>c.id===colId);
+      if (!col) return "";
+      if (col.type === "computed") return compute(item, col);
+
+      const v = getVal(item, colId);
+      if (col.type === "number") return Number(v) || 0;
+      return String(v ?? "").toLowerCase();
+    }
+
+    function renderTable(){
+      const body = $("tableBody");
+      body.innerHTML = "";
+
+      let view = [...inventory];
+
+      // filter
+      if (searchTerm.trim()){
+        const q = searchTerm.trim().toLowerCase();
+        view = view.filter(it=>{
+          const n = String(getVal(it,"name") ?? "").toLowerCase();
+          const d = String(getVal(it,"desc") ?? "").toLowerCase();
+          return n.includes(q) || d.includes(q);
+        });
+      }
+      if (showLowOnly) view = view.filter(isLow);
+
+      // sort
+      const dir = sortDir === "asc" ? 1 : -1;
+      const colId = sortColId || settings.defaultSort || "name";
+      view.sort((a,b)=>{
+        const av = sortValue(a, colId);
+        const bv = sortValue(b, colId);
+        if (typeof av === "number" && typeof bv === "number") return (av - bv) * dir;
+        return String(av).localeCompare(String(bv), "ar") * dir;
+      });
+
+      // totals
+      let totalVal = 0;
+      let totalSpent = 0;
+      let lowCount = 0;
+
+      const cols = visibleCols();
+
+      view.forEach(item=>{
+        totalVal += Number(compute(item,{key:"totalValue"})) || 0;
+        totalSpent += num(getVal(item,"spent"));
+        if (isLow(item)) lowCount++;
+
+        const tr = document.createElement("tr");
+        tr.className = "border-b border-slate-800 hover:bg-slate-800/40 transition-colors";
+        tr.setAttribute("data-id", item.id);
+
+        tr.innerHTML = cols.map(c=>renderCell(item,c)).join("");
+        body.appendChild(tr);
+      });
+
+      const u = getUi();
+      $("totalValue").innerText = totalVal.toLocaleString() + " " + (u.texts.currency || "");
+      $("totalItems").innerText = view.length;
+      $("lowStockCount").innerText = lowCount;
+      $("totalSpent").innerText = totalSpent;
+
+      ensureSortableRows();
+    }
+
+    // ======= Schema Builder UI =======
+    function openSchemaModal(){
+      if (!isAdmin) return alert("بناء الجدول للأدمن فقط");
+      $("schemaModal").style.display = "block";
+      renderSchemaTable();
+    }
+    function closeSchemaModal(){ $("schemaModal").style.display = "none"; }
+
+    function renderSchemaTable(){
+      const body = $("schemaBody");
+      body.innerHTML = "";
+
+      schema.columns.forEach((c, idx)=>{
+        const isSystem = c.id.startsWith("__") || c.type === "computed" || c.type === "drag" || c.type === "delete";
+        const tr = document.createElement("tr");
+        tr.className = "border-b border-slate-800";
+        tr.setAttribute("data-colid", c.id);
+
+        const colorOptions = `
+          <option value="" ${!c.color?"selected":""}>-</option>
+          <option value="emerald" ${c.color==="emerald"?"selected":""}>أخضر</option>
+          <option value="sky" ${c.color==="sky"?"selected":""}>أزرق</option>
+          <option value="orange" ${c.color==="orange"?"selected":""}>برتقالي</option>
+          <option value="red" ${c.color==="red"?"selected":""}>أحمر</option>
+          <option value="violet" ${c.color==="violet"?"selected":""}>بنفسجي</option>
+        `;
+
+        const typeOptions = `
+          <option value="text" ${c.type==="text"?"selected":""}>نص</option>
+          <option value="number" ${c.type==="number"?"selected":""}>رقم</option>
+          <option value="image" ${c.type==="image"?"selected":""}>صورة (URL)</option>
+        `;
+
+        tr.innerHTML = `
+          <td class="p-2 text-center"><i class="fas fa-grip-vertical handle"></i></td>
+
+          <td class="p-2">
+            <input ${isSystem?"disabled":""} class="w-full p-1 rounded text-sm" value="${esc(c.label||"")}"
+              data-k="label" />
+          </td>
+
+          <td class="p-2 text-xs text-slate-400">${esc(c.id)}</td>
+
+          <td class="p-2">
+            ${isSystem
+              ? `<span class="text-xs text-slate-400">${c.type}${c.key? " / "+c.key:""}</span>`
+              : `<select class="w-full p-1 rounded text-sm" data-k="type">${typeOptions}</select>`}
+          </td>
+
+          <td class="p-2 text-center">
+            <input type="checkbox" ${c.visible!==false?"checked":""} ${isSystem?"disabled":""} data-k="visible" />
+          </td>
+
+          <td class="p-2 text-center">
+            <input type="checkbox" ${c.inAdd?"checked":""} ${isSystem?"disabled":""} data-k="inAdd" />
+          </td>
+
+          <td class="p-2 text-center">
+            <input type="checkbox" ${c.export?"checked":""} ${c.type==="drag"||c.type==="delete"?"disabled":""} data-k="export" />
+          </td>
+
+          <td class="p-2 text-center">
+            <input ${isSystem?"disabled":""} type="number" class="w-20 p-1 rounded text-sm text-center" value="${Number(c.width)||120}" data-k="width" />
+          </td>
+
+          <td class="p-2 text-center">
+            ${isSystem ? `<span class="text-xs text-slate-500">-</span>` : `<select class="w-full p-1 rounded text-sm" data-k="color">${colorOptions}</select>`}
+          </td>
+
+          <td class="p-2 text-center">
+            ${isSystem ? `<span class="text-xs text-slate-500">-</span>` : `<button class="px-3 py-1 rounded text-xs bg-red-500/20 text-red-300" data-act="del">حذف</button>`}
+          </td>
+        `;
+        body.appendChild(tr);
+      });
+
+      ensureSortableSchema();
+    }
+
+    function readSchemaFromUI(){
+      const rows = Array.from(document.querySelectorAll("#schemaBody tr"));
+      const newCols = [];
+
+      rows.forEach(r=>{
+        const colId = r.getAttribute("data-colid");
+        const old = schema.columns.find(c=>c.id===colId);
+        if (!old) return;
+
+        const isSystem = colId.startsWith("__") || old.type === "computed" || old.type === "drag" || old.type === "delete";
+        const inputs = r.querySelectorAll("[data-k]");
+        const next = structuredClone(old);
+
+        inputs.forEach(el=>{
+          const k = el.getAttribute("data-k");
+          if (el.type === "checkbox") next[k] = el.checked;
+          else if (k === "width") next[k] = Number(el.value) || 120;
+          else next[k] = el.value;
+        });
+
+        // system columns keep safe defaults
+        if (isSystem){
+          next.visible = old.visible;
+          next.inAdd = old.inAdd;
+          next.type = old.type;
+          next.key = old.key;
+        }
+
+        // sanity: never allow delete/drag export
+        if (next.type === "drag" || next.type === "delete") next.export = false;
+
+        newCols.push(next);
+      });
+
+      return { ...schema, columns: newCols };
+    }
+
+    function addNewColumn(){
+      if (!isAdmin) return;
+      const id = "c_" + Math.random().toString(36).slice(2,8) + "_" + Date.now().toString(36).slice(-3);
+      const insertAt = schema.columns.findIndex(c=>c.id==="__delete");
+      const col = { id, label:"عمود جديد", type:"text", visible:true, inAdd:false, export:true, width:140, color:"" };
+
+      const cols = [...schema.columns];
+      if (insertAt > -1) cols.splice(insertAt, 0, col);
+      else cols.push(col);
+
+      schema = { ...schema, columns: cols };
+      renderSchemaTable();
+    }
+
+    function attachSchemaEvents(){
+      // delete buttons
+      $("schemaBody").addEventListener("click", (e)=>{
+        const btn = e.target.closest("[data-act='del']");
+        if (!btn) return;
+        const tr = btn.closest("tr");
+        const id = tr.getAttribute("data-colid");
+        if (!id) return;
+        if (!confirm("حذف العمود؟ (لن يحذف بياناته القديمة من السيرفر، بس يخفيه/يشيله من الجدول)")) return;
+        schema = { ...schema, columns: schema.columns.filter(c=>c.id!==id) };
+        renderSchemaTable();
+      });
+    }
+
+    // ======= Sortables =======
+    function ensureSortableRows(){
+      if (sortableRowsInited) return;
+      if (typeof Sortable === "undefined") return;
+
+      Sortable.create($("tableBody"), {
+        handle: ".handle",
+        animation: 150,
+        onEnd: async ()=>{
+          if (!isAdmin) return;
+          try {
+            const batch = writeBatch(db);
+            document.querySelectorAll("#tableBody tr").forEach((row, idx)=>{
+              const id = row.getAttribute("data-id");
+              if (!id) return;
+              batch.update(doc(db, "artifacts", appId, "public", "data", "inventory", id), { order: idx });
+            });
+            await batch.commit();
+          } catch (e) {
+            console.error("Sort save error:", e);
+          }
+        }
+      });
+
+      sortableRowsInited = true;
+    }
+
+    function ensureSortableSchema(){
+      if (sortableSchemaInited) return;
+      if (typeof Sortable === "undefined") return;
+
+      Sortable.create($("schemaBody"), {
+        handle: ".handle",
+        animation: 150
+      });
+
+      sortableSchemaInited = true;
+    }
+
+    // ======= Firebase CRUD =======
     window.updateField = async (id, field, value)=>{
       if (!isAdmin) return alert("التعديل للأدمن فقط");
-      const isText = field === "name" || field === "desc";
-      const val = isText ? (value ?? "") : (parseFloat(value) || 0);
+      const col = schema.columns.find(c=>c.id===field);
+      if (!col) return;
 
-      await updateDoc(doc(db, "artifacts", appId, "public", "data", "inventory", id), {
-        [field]: val,
+      const ref = doc(db, "artifacts", appId, "public", "data", "inventory", id);
+
+      let val = value;
+      if (col.type === "number") val = Number(value) || 0;
+      else val = String(value ?? "");
+
+      // write into values map
+      const payload = {
+        [`values.${field}`]: val,
         updatedAt: serverTimestamp()
-      });
+      };
+
+      // legacy compatibility for common ids
+      if (["name","desc","start","bought","spent","cost","image"].includes(field)){
+        payload[field] = val;
+      }
+
+      try {
+        await updateDoc(ref, payload);
+      } catch (e){
+        console.error(e);
+        alert("صار خطأ بالتحديث");
+      }
     };
 
     window.deleteItem = async (id)=>{
@@ -414,146 +931,205 @@
       await deleteDoc(doc(db, "artifacts", appId, "public", "data", "inventory", id));
     };
 
+    // ======= Meta: schema + settings =======
+    async function initMetaIfMissing(){
+      if (!isAdmin) return;
+      try {
+        const sDoc = await getDoc(schemaRef());
+        if (!sDoc.exists()){
+          await setDoc(schemaRef(), DEFAULT_SCHEMA);
+        }
+        const setDocSnap = await getDoc(settingsRef());
+        if (!setDocSnap.exists()){
+          await setDoc(settingsRef(), DEFAULT_SETTINGS);
+        }
+      } catch(e){
+        console.error("initMetaIfMissing error:", e);
+      }
+    }
+
+    function listenMeta(){
+      onSnapshot(schemaRef(), (snap)=>{
+        if (snap.exists()){
+          const data = snap.data();
+          schema = data && data.columns ? data : structuredClone(DEFAULT_SCHEMA);
+        } else {
+          schema = structuredClone(DEFAULT_SCHEMA);
+        }
+        renderHeader();
+        renderAddForm();
+        rebuildSortSelect();
+        renderTable();
+      });
+
+      onSnapshot(settingsRef(), (snap)=>{
+        if (snap.exists()){
+          settings = { ...structuredClone(DEFAULT_SETTINGS), ...(snap.data() || {}) };
+        } else {
+          settings = structuredClone(DEFAULT_SETTINGS);
+        }
+        $("lowThreshold").value = Number(settings.lowThreshold ?? 2);
+        sortColId = settings.defaultSort || sortColId;
+        sortDir = settings.defaultSortDir || sortDir;
+        showLowOnly = !!settings.showLowOnly;
+        updateSortDirBtn();
+        updateLowOnlyBtn();
+        renderTable();
+      });
+    }
+
+    function updateSortDirBtn(){
+      const btn = $("sortDirBtn");
+      if (sortDir === "asc"){
+        btn.innerHTML = `<i class="fas fa-arrow-up-short-wide"></i> تصاعدي`;
+      } else {
+        btn.innerHTML = `<i class="fas fa-arrow-down-wide-short"></i> تنازلي`;
+      }
+    }
+    function updateLowOnlyBtn(){
+      const btn = $("lowOnlyBtn");
+      btn.style.background = showLowOnly ? "var(--accent,#3b82f6)" : "";
+      btn.style.color = showLowOnly ? "#fff" : "";
+    }
+
+    async function saveSettings(){
+      const low = Number($("lowThreshold").value) || 2;
+      const payload = {
+        lowThreshold: low,
+        defaultSort: sortColId || "name",
+        defaultSortDir: sortDir || "desc",
+        showLowOnly: !!showLowOnly
+      };
+
+      if (!isAdmin){
+        // allow local preview only
+        settings = { ...settings, ...payload };
+        renderTable();
+        return;
+      }
+      await setDoc(settingsRef(), payload, { merge:true });
+    }
+
+    async function saveSchema(){
+      if (!isAdmin) return alert("الحفظ للأدمن فقط");
+      const next = readSchemaFromUI();
+
+      // safety: ensure required system cols exist
+      const mustHave = ["__drag","__delete","remaining","totalValue","status"];
+      const ids = new Set(next.columns.map(c=>c.id));
+      mustHave.forEach(x=>{
+        if (!ids.has(x)){
+          alert("خطأ: لازم تبقى الأعمدة المحسوبة/النظامية موجودة");
+          throw new Error("Missing required column " + x);
+        }
+      });
+
+      await setDoc(schemaRef(), next, { merge:false });
+      closeSchemaModal();
+    }
+
+    // ======= Inventory realtime =======
+    function startRealtime(){
+      const q = query(invCol());
+      onSnapshot(q, (snap)=>{
+        inventory = snap.docs.map(d=>{
+          const data = d.data() || {};
+          // ensure values map exists (compat)
+          const values = data.values || {
+            name: data.name || "",
+            desc: data.desc || "",
+            start: Number(data.start)||0,
+            bought: Number(data.bought)||0,
+            spent: Number(data.spent)||0,
+            cost: Number(data.cost)||0,
+            image: data.image || ""
+          };
+          return { id:d.id, ...data, values };
+        }).sort((a,b)=>(a.order||0)-(b.order||0));
+
+        renderTable();
+      }, (err)=>{
+        console.error(err);
+        setStatus("status-offline", "فشل الاتصال: " + (err?.code || err?.message || "Firestore error"));
+      });
+    }
+
+    // ======= Add item =======
     $("addForm").addEventListener("submit", async (e)=>{
       e.preventDefault();
       if (!isAdmin) return alert("الإضافة للأدمن فقط");
 
-      const name = $("name").value.trim();
-      const desc = $("desc").value.trim();
-      const start = parseFloat($("start").value) || 0;
-      const cost  = parseFloat($("cost").value) || 0;
+      const cols = dataColsForAdd();
+      const values = {};
+      for (const c of cols){
+        const el = $("add_" + c.id);
+        if (!el) continue;
+        let v = el.value;
+        if (c.type === "number") v = Number(v) || 0;
+        else v = String(v ?? "").trim();
+        if (c.required && !String(v).trim()) return alert("حقل مطلوب: " + (c.label || c.id));
+        values[c.id] = v;
+      }
 
-      if (!name) return;
+      // defaults for common numeric tracking
+      if (values.bought === undefined) values.bought = 0;
+      if (values.spent === undefined) values.spent = 0;
+      if (values.start === undefined) values.start = 0;
+      if (values.cost === undefined) values.cost = 0;
 
-      await addDoc(invCol(), {
-        name, desc,
-        start,
-        bought: 0,
-        spent: 0,
-        cost,
+      const docData = {
+        values,
         order: inventory.length,
         createdAt: Date.now(),
-        updatedAt: serverTimestamp()
-      });
+        updatedAt: serverTimestamp(),
 
-      e.target.reset();
+        // legacy for compatibility
+        name: values.name || "",
+        desc: values.desc || "",
+        start: Number(values.start)||0,
+        bought: Number(values.bought)||0,
+        spent: Number(values.spent)||0,
+        cost: Number(values.cost)||0,
+        image: values.image || ""
+      };
+
+      try {
+        await addDoc(invCol(), docData);
+        e.target.reset();
+      } catch (err){
+        console.error(err);
+        alert("صار خطأ بالإضافة");
+      }
     });
 
-    function renderTable(){
-      const body = $("tableBody");
-      body.innerHTML = "";
+    // ======= Export Excel (dynamic) =======
+    window.exportToExcel = ()=>{
+      if (typeof XLSX === "undefined") return alert("XLSX مو محمّلة");
 
-      let totalVal = 0, totalSpent = 0, low = 0;
-
-      inventory.forEach((item)=>{
-        const start = Number(item.start)||0;
-        const bought = Number(item.bought)||0;
-        const spent = Number(item.spent)||0;
-        const cost = Number(item.cost)||0;
-
-        const remaining = (start + bought) - spent;
-        const rowValue = remaining * cost;
-
-        totalVal += rowValue;
-        totalSpent += spent;
-        if (remaining <= 2) low++;
-
-        const statusText = remaining <= 2 ? "نقص" : "متوفر";
-        const statusClass = remaining <= 2 ? "text-red-400 font-bold" : "text-emerald-400 font-bold";
-
-        const tr = document.createElement("tr");
-        tr.className = "border-b border-slate-800 hover:bg-slate-800/40 transition-colors";
-        tr.setAttribute("data-id", item.id);
-
-        tr.innerHTML = `
-          <td class="p-2 text-center"><i class="fas fa-grip-vertical handle"></i></td>
-
-          <td class="p-2">
-            <input ${isAdmin?"":"disabled"} type="text" value="${esc(item.name)}"
-              onblur="updateField('${item.id}','name',this.value)"
-              class="name-input w-full bg-transparent border-none focus:ring-1 focus:ring-blue-500 font-bold rounded px-2">
-          </td>
-
-          <td class="p-2">
-            <input ${isAdmin?"":"disabled"} type="text" value="${esc(item.desc)}"
-              onblur="updateField('${item.id}','desc',this.value)"
-              class="desc-input w-full bg-transparent border-none focus:ring-1 focus:ring-blue-500 rounded px-2">
-          </td>
-
-          <td class="p-2 text-center">
-            <input ${isAdmin?"":"disabled"} type="number" step="any" value="${start}"
-              onchange="updateField('${item.id}','start',this.value)"
-              class="table-input w-20 p-1 rounded text-center font-bold
-                     text-emerald-300 bg-emerald-500/10 border border-emerald-500/30">
-          </td>
-
-          <td class="p-2 text-center">
-            <input ${isAdmin?"":"disabled"} type="number" step="any" value="${bought}"
-              onchange="updateField('${item.id}','bought',this.value)"
-              class="table-input w-20 p-1 rounded text-center font-bold
-                     text-sky-300 bg-sky-500/10 border border-sky-500/30">
-          </td>
-
-          <td class="p-2 text-center">
-            <input ${isAdmin?"":"disabled"} type="number" step="any" value="${spent}"
-              onchange="updateField('${item.id}','spent',this.value)"
-              class="table-input w-20 p-1 rounded text-center font-bold
-                     text-orange-300 bg-orange-500/10 border border-orange-500/30">
-          </td>
-
-          <td class="p-2 text-center font-bold ${remaining<=2?"text-red-400":"text-slate-200"}">${remaining}</td>
-
-          <td class="p-2 text-center">
-            <input ${isAdmin?"":"disabled"} type="number" step="any" value="${cost}"
-              onchange="updateField('${item.id}','cost',this.value)"
-              class="table-input w-24 p-1 rounded text-center">
-          </td>
-
-          <td class="p-2 text-center font-bold text-blue-400 text-xs">${Number.isFinite(rowValue)?rowValue.toLocaleString():"0"}</td>
-
-          <td class="p-2 text-center ${statusClass}">${statusText}</td>
-
-          <td class="p-2 text-center">
-            <button ${isAdmin?"":"disabled"} onclick="deleteItem('${item.id}')"
-              class="text-slate-500 hover:text-red-500 transition-colors">
-              <i class="fas fa-trash-alt"></i>
-            </button>
-          </td>
-        `;
-        body.appendChild(tr);
+      const cols = exportCols();
+      const rows = inventory.map(it=>{
+        const row = {};
+        cols.forEach(c=>{
+          const label = c.label || c.id;
+          if (c.type === "computed"){
+            const v = compute(it, c);
+            row[label] = (typeof v === "number") ? v : String(v ?? "");
+          } else if (c.type === "number"){
+            row[label] = Number(getVal(it, c.id)) || 0;
+          } else {
+            row[label] = String(getVal(it, c.id) ?? "");
+          }
+        });
+        return row;
       });
 
-      $("totalValue").innerText = totalVal.toLocaleString() + " د.ع";
-      $("totalItems").innerText = inventory.length;
-      $("lowStockCount").innerText = low;
-      $("totalSpent").innerText = totalSpent;
+      const ws = XLSX.utils.json_to_sheet(rows);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "Inventory");
+      XLSX.writeFile(wb, `مخزن_${new Date().toISOString().split("T")[0]}.xlsx`);
+    };
 
-      ensureSortable();
-    }
-
-    function ensureSortable(){
-      if (sortableInited) return;
-      if (typeof Sortable === "undefined") return;
-
-      Sortable.create($("tableBody"), {
-        handle: ".handle",
-        animation: 150,
-        onEnd: async ()=>{
-          if (!isAdmin) return;
-          const batch = writeBatch(db);
-          document.querySelectorAll("#tableBody tr").forEach((row, idx)=>{
-            const id = row.getAttribute("data-id");
-            if (!id) return;
-            batch.update(doc(db, "artifacts", appId, "public", "data", "inventory", id), { order: idx });
-          });
-          await batch.commit();
-        }
-      });
-
-      sortableInited = true;
-    }
-
-    // Download HTML
+    // ======= Download HTML =======
     window.downloadAppFile = ()=>{
       const content = document.documentElement.outerHTML;
       const blob = new Blob([content], { type:"text/html" });
@@ -565,55 +1141,95 @@
       document.body.removeChild(a);
     };
 
-    // Export Excel
-    window.exportToExcel = ()=>{
-      if (typeof XLSX === "undefined") return alert("XLSX مو محمّلة");
-      const data = inventory.map((i)=>{
-        const start = Number(i.start)||0;
-        const bought = Number(i.bought)||0;
-        const spent = Number(i.spent)||0;
-        const cost = Number(i.cost)||0;
-        const remaining = (start + bought) - spent;
-        return {
-          "المادة": i.name || "",
-          "الوصف": i.desc || "",
-          "البداية": start,
-          "مشتريات": bought,
-          "مصروف": spent,
-          "المتبقي": remaining,
-          "سعر CC": cost,
-          "القيمة الإجمالية": remaining * cost,
-          "الحالة": remaining<=2 ? "نقص" : "متوفر"
-        };
-      });
-      const ws = XLSX.utils.json_to_sheet(data);
-      const wb = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(wb, ws, "Inventory");
-      XLSX.writeFile(wb, `مخزن_د_ثائر_${new Date().toISOString().split("T")[0]}.xlsx`);
-    };
+    // ======= UI events =======
+    $("searchBox").addEventListener("input", (e)=>{
+      searchTerm = e.target.value || "";
+      renderTable();
+    });
 
-    // ========= BOOT =========
+    $("sortCol").addEventListener("change", (e)=>{
+      sortColId = e.target.value;
+      renderTable();
+    });
+
+    $("sortDirBtn").addEventListener("click", ()=>{
+      sortDir = (sortDir === "asc") ? "desc" : "asc";
+      updateSortDirBtn();
+      renderTable();
+    });
+
+    $("lowOnlyBtn").addEventListener("click", ()=>{
+      showLowOnly = !showLowOnly;
+      updateLowOnlyBtn();
+      renderTable();
+    });
+
+    $("saveSettingsBtn").addEventListener("click", saveSettings);
+
+    $("btnSchema").addEventListener("click", openSchemaModal);
+    $("closeSchemaBtn").addEventListener("click", closeSchemaModal);
+    $("addColBtn").addEventListener("click", addNewColumn);
+    $("saveSchemaBtn").addEventListener("click", async ()=>{
+      try { await saveSchema(); }
+      catch(e){ console.error(e); }
+    });
+
+    $("schemaModal").addEventListener("click", (e)=>{
+      if (e.target === $("schemaModal")) closeSchemaModal();
+    });
+
+    $("btnAdminLoginToggle").addEventListener("click", ()=>{
+      $("adminBox").classList.toggle("hidden");
+      $("adminBox").classList.toggle("grid");
+    });
+
+    $("doAdminLogin").addEventListener("click", async ()=>{
+      const email = $("adminEmail").value.trim();
+      const pass = $("adminPass").value.trim();
+      if (!email || !pass) return alert("اكتب الإيميل والباسورد");
+
+      try {
+        await signInWithEmailAndPassword(auth, email, pass);
+      } catch(e){
+        console.error(e);
+        alert("فشل تسجيل الدخول");
+      }
+    });
+
+    $("doAdminLogout").addEventListener("click", async ()=>{
+      await signOut(auth);
+    });
+
+    // ======= Global clicks in schema table (delete) =======
+    attachSchemaEvents();
+
+    // ======= Boot =======
     __runAfterDom(async ()=>{
-      applyLocalSettings();
+      applyUi();
 
       setStatus("status-connecting", `<i class="fas fa-circle text-[8px]"></i> جاري الاتصال...`);
 
+      listenMeta();
+
       onAuthStateChanged(auth, async (user)=>{
+        currentUser = user;
+
         // Admin: email/password
         if (user && !user.isAnonymous){
           setStatus("status-online", `<i class="fas fa-circle text-[8px]"></i> متصل سحابياً`);
           $("userDisplay").innerText = `المعرف: ${user.uid.substring(0,8)}`;
-          setAdminUI(true, user.email || "");
+          setAdminUI(true);
+          await initMetaIfMissing();
           startRealtime();
           return;
         }
 
-        // If signed out -> ensure anonymous for viewers
+        // Signed out -> anonymous viewer
         if (!user){
           try {
             await signInAnonymously(auth);
             return;
-          } catch (e){
+          } catch(e){
             console.error(e);
             setStatus("status-offline", "فشل الاتصال: " + (e?.code || e?.message || "Auth error"));
             return;
@@ -626,6 +1242,14 @@
         setAdminUI(false);
         startRealtime();
       });
+
+      // Initial render
+      renderHeader();
+      renderAddForm();
+      rebuildSortSelect();
+      updateSortDirBtn();
+      updateLowOnlyBtn();
+      $("lowThreshold").value = Number(DEFAULT_SETTINGS.lowThreshold);
     });
   </script>
 </body>
