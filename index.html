@@ -2,10 +2,10 @@
 <html lang="ar" dir="rtl">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>مخزن د. ثائر</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>مخزن د. ثائر - سحابي</title>
 
-  <!-- Tailwind + Icons -->
+  <!-- UI libs -->
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/js/all.min.js" crossorigin="anonymous"></script>
 
@@ -13,378 +13,199 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js" crossorigin="anonymous"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/Sortable/1.15.0/Sortable.min.js" crossorigin="anonymous"></script>
 
+  <!-- ✅ Fix: hoisted $ + runAfterDom (prevents "$ before init" forever) -->
+  <script>
+    function $(id){ return document.getElementById(id); }
+    window.__runAfterDom = function(fn){
+      if (document.readyState === "loading") {
+        document.addEventListener("DOMContentLoaded", fn, { once:true });
+      } else {
+        fn();
+      }
+    };
+  </script>
+
   <style>
-    :root{
-      --bg:#0b1220;
-      --panel: rgba(17, 24, 39, .72);
-      --panelSolid:#111827;
-      --border: rgba(255,255,255,.09);
-      --text:#e5e7eb;
-      --muted:#94a3b8;
-      --brand:#3b82f6;
-      --good:#10b981;
-      --warn:#f59e0b;
-      --bad:#f87171;
-
-      --start:#34d399;   /* green */
-      --buy:#38bdf8;     /* blue */
-      --spent:#fb923c;   /* orange */
+    body { font-family: system-ui,-apple-system,"Segoe UI",Tahoma; margin:0; }
+    .glass { background: rgba(30, 41, 59, 0.65); backdrop-filter: blur(10px); border: 1px solid rgba(255,255,255,0.08); }
+    input, select {
+      background: rgba(15,23,42,0.6)!important;
+      border: 1px solid rgba(255,255,255,0.10)!important;
+      color: #fff!important;
     }
+    input:focus, select:focus { outline:none; border-color: var(--accent, #3b82f6)!important; background: rgba(30,41,59,0.9)!important; }
+    th { background:#1e293b!important; color:#94a3b8!important; white-space:nowrap; font-size:0.8rem; }
+    .handle { cursor: grab; color:#64748b; padding: 10px; }
+    .status-online { color:#10b981; }
+    .status-offline { color:#f87171; font-weight:700; }
+    .status-connecting { color:#fbbf24; }
 
-    /* THEMES (8) */
-    [data-theme="midnight"]{ --bg:#0b1220; --panel:rgba(17,24,39,.72); --brand:#3b82f6; }
-    [data-theme="arctic"]{ --bg:#071a2b; --panel:rgba(3,18,33,.72); --brand:#22c55e; --muted:#a3c7ff; }
-    [data-theme="lavender"]{ --bg:#120b21; --panel:rgba(30,20,50,.72); --brand:#a78bfa; --muted:#cbd5e1; }
-    [data-theme="emerald"]{ --bg:#061a14; --panel:rgba(2,24,18,.72); --brand:#10b981; --muted:#a7f3d0; }
-    [data-theme="sunset"]{ --bg:#1a0f0b; --panel:rgba(35,18,12,.72); --brand:#fb7185; --muted:#fdba74; }
-    [data-theme="slateLight"]{ --bg:#eef2ff; --panel:rgba(255,255,255,.72); --panelSolid:#ffffff; --text:#0f172a; --muted:#475569; --border:rgba(15,23,42,.12); --brand:#2563eb; }
-    [data-theme="coffee"]{ --bg:#120f0b; --panel:rgba(33,26,18,.72); --brand:#f59e0b; --muted:#d6d3d1; }
-    [data-theme="mono"]{ --bg:#0a0a0a; --panel:rgba(20,20,20,.72); --brand:#ffffff; --muted:#a3a3a3; --border:rgba(255,255,255,.12); }
-
-    body{ background:var(--bg); color:var(--text); margin:0; font-family: system-ui,-apple-system,"Segoe UI",Tahoma; }
-    .glass{ background:var(--panel); backdrop-filter: blur(12px); border:1px solid var(--border); }
-    .solid{ background:var(--panelSolid); border:1px solid var(--border); }
-
-    input, select{
-      background: rgba(0,0,0,.12) !important;
-      border: 1px solid var(--border) !important;
-      color: var(--text) !important;
-      outline: none !important;
+    @media (max-width: 768px) {
+      .table-container { font-size: 13px; }
+      input.table-input { width: 64px !important; padding: 4px !important; font-size: 12px; }
+      .name-input { width: 120px !important; }
+      .desc-input { width: 140px !important; }
     }
-    input::placeholder{ color: rgba(148,163,184,.85); }
-    input:focus, select:focus{ border-color: var(--brand) !important; box-shadow: 0 0 0 2px rgba(59,130,246,.25); }
-
-    th{
-      background: rgba(2,6,23,.45);
-      color: var(--muted);
-      white-space:nowrap;
-      font-size:.82rem;
-    }
-    .handle{ cursor:grab; opacity:.7; }
-    .badge{ border:1px solid var(--border); padding:2px 10px; border-radius:999px; font-size:.75rem; }
-    .btn{
-      border:1px solid var(--border);
-      padding:.55rem .9rem; border-radius:.75rem;
-      background: rgba(255,255,255,.06);
-      transition: transform .04s ease, opacity .2s ease, background .2s ease;
-    }
-    .btn:hover{ background: rgba(255,255,255,.10); }
-    .btn:active{ transform: scale(.98); }
-    .btn-primary{ background: color-mix(in srgb, var(--brand) 85%, #000 15%); border-color: color-mix(in srgb, var(--brand) 65%, #000 35%); }
-    .btn-primary:hover{ opacity:.95; }
-
-    .kpi{ border-right: 4px solid transparent; }
-    .kpi.good{ border-right-color: var(--good); }
-    .kpi.bad{ border-right-color: var(--bad); }
-
-    .chip{ border:1px solid var(--border); border-radius:999px; padding:2px 10px; font-size:.75rem; color: var(--muted); }
-    .toast{ position:fixed; left:16px; bottom:16px; z-index:9999; width:min(420px, calc(100vw - 32px)); }
-    .toast .item{ display:flex; gap:10px; align-items:flex-start; padding:12px 14px; border-radius:14px; border:1px solid var(--border); background:rgba(0,0,0,.35); backdrop-filter: blur(10px); margin-top:10px; }
-    .toast .title{ font-weight:800; }
-    .toast .msg{ color: var(--muted); font-size:.9rem; margin-top:2px; }
-
-    /* Colored inputs for start/bought/spent */
-    .inp-start{ color: var(--start) !important; background: color-mix(in srgb, var(--start) 10%, transparent) !important; border-color: color-mix(in srgb, var(--start) 25%, var(--border)) !important; font-weight:800; }
-    .inp-buy{ color: var(--buy) !important; background: color-mix(in srgb, var(--buy) 10%, transparent) !important; border-color: color-mix(in srgb, var(--buy) 25%, var(--border)) !important; font-weight:800; }
-    .inp-spent{ color: var(--spent) !important; background: color-mix(in srgb, var(--spent) 10%, transparent) !important; border-color: color-mix(in srgb, var(--spent) 25%, var(--border)) !important; font-weight:800; }
-
-    /* Mobile tweaks */
-    @media (max-width: 768px){
-      .tableWrap{ font-size:13px; }
-      input.table-input{ width:76px !important; padding:4px !important; font-size:12px; }
-      .name-input{ width:140px !important; }
-      .desc-input{ width:150px !important; }
-    }
-
-    /* Modal */
-    .modalBack{ position:fixed; inset:0; background:rgba(0,0,0,.55); display:none; align-items:center; justify-content:center; z-index:9998; }
-    .modalBack.show{ display:flex; }
-    .modal{ width:min(960px, calc(100vw - 24px)); max-height: calc(100vh - 24px); overflow:auto; border-radius:18px; }
   </style>
 </head>
 
-<body data-theme="midnight" class="min-h-screen">
-  <!-- Topbar -->
-  <div class="sticky top-0 z-40">
-    <div class="glass">
-      <div class="max-w-7xl mx-auto px-4 md:px-6 py-3 flex items-center gap-3 justify-between">
-        <div class="flex items-center gap-3">
-          <button id="btnMobileMenu" class="btn md:hidden" title="القائمة"><i class="fa-solid fa-bars"></i></button>
-          <div class="w-11 h-11 rounded-2xl flex items-center justify-center" style="background:color-mix(in srgb, var(--brand) 80%, #000 20%);">
-            <i class="fa-solid fa-cloud text-white text-xl"></i>
-          </div>
-          <div>
-            <div class="flex items-center gap-2">
-              <h1 id="appTitle" class="text-base md:text-lg font-black">مخزن د. ثائر</h1>
-              <span id="modeBadge" class="badge text-xs">قراءة فقط</span>
-            </div>
-            <div class="flex items-center gap-2 text-xs">
-              <span id="syncStatus" class="chip"><i class="fa-solid fa-circle-notch fa-spin"></i> جاري الاتصال...</span>
-              <span class="text-slate-500">|</span>
-              <span id="userDisplay" class="text-slate-400 italic">...</span>
-            </div>
+<body class="min-h-screen" style="background:#0f172a;color:#e2e8f0;">
+  <div class="max-w-7xl mx-auto p-4 md:p-6">
+
+    <!-- Header -->
+    <header class="flex flex-col md:flex-row justify-between items-center mb-6 gap-4">
+      <div class="flex items-center gap-4 w-full md:w-auto">
+        <div class="w-12 h-12 rounded-xl flex items-center justify-center shadow-lg" style="background:var(--accent,#3b82f6)">
+          <i class="fas fa-cloud text-2xl text-white"></i>
+        </div>
+        <div>
+          <h1 class="text-xl font-bold" id="appTitle">مخزن د. ثائر السحابي</h1>
+          <div class="flex items-center gap-2 text-xs">
+            <span id="syncStatus" class="status-connecting">
+              <i class="fas fa-circle text-[8px]"></i> جاري الاتصال...
+            </span>
+            <span class="text-slate-500">|</span>
+            <span id="userDisplay" class="text-slate-400 italic">...</span>
           </div>
         </div>
+      </div>
 
+      <div class="flex gap-2 w-full md:w-auto overflow-x-auto pb-2 md:pb-0">
+        <button onclick="downloadAppFile()" class="text-white px-4 py-2 rounded-lg flex items-center gap-2 text-sm whitespace-nowrap shadow-lg transition-all active:scale-95" style="background:var(--accent,#3b82f6)">
+          <i class="fas fa-download"></i> <span id="btnDownloadTxt">تحميل النظام (HTML)</span>
+        </button>
+        <button onclick="exportToExcel()" class="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 text-sm whitespace-nowrap shadow-lg">
+          <i class="fas fa-file-excel"></i> <span id="btnExportTxt">تصدير إكسل</span>
+        </button>
+      </div>
+    </header>
+
+    <!-- Settings Panel -->
+    <div class="glass rounded-xl p-4 mb-6">
+      <div class="flex flex-col md:flex-row gap-3 items-start md:items-center justify-between">
         <div class="flex items-center gap-2">
-          <button id="btnTheme" class="btn" title="ثيم"><i class="fa-solid fa-palette"></i></button>
-          <button id="btnSettings" class="btn" title="إعدادات"><i class="fa-solid fa-sliders"></i></button>
-          <button id="btnExport" class="btn" title="تصدير إكسل"><i class="fa-solid fa-file-excel"></i></button>
-          <button id="btnDownload" class="btn btn-primary text-white" title="تحميل HTML"><i class="fa-solid fa-download"></i></button>
-
-          <button id="btnAdmin" class="btn" title="تسجيل دخول الأدمن"><i class="fa-solid fa-user-shield"></i></button>
-          <button id="btnLogout" class="btn hidden" title="خروج"><i class="fa-solid fa-right-from-bracket"></i></button>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <div class="max-w-7xl mx-auto px-4 md:px-6 py-5">
-    <div class="grid grid-cols-12 gap-4">
-      <!-- Sidebar -->
-      <aside id="sidebar" class="col-span-12 md:col-span-3 lg:col-span-3 glass rounded-2xl p-4 hidden md:block">
-        <div class="flex items-center justify-between">
-          <div class="font-black">لوحة التحكم</div>
-          <span class="chip" id="kpiUpdated">آخر تحديث: ...</span>
+          <i class="fas fa-sliders text-slate-300"></i>
+          <h2 class="font-bold">الإعدادات</h2>
         </div>
 
-        <div class="mt-4 space-y-2">
-          <button class="btn w-full text-right" data-view="inventory"><i class="fa-solid fa-boxes-stacked ml-2"></i> المخزن</button>
-          <button class="btn w-full text-right" data-view="reports"><i class="fa-solid fa-chart-line ml-2"></i> تقارير سريعة</button>
-          <button class="btn w-full text-right" data-view="about"><i class="fa-solid fa-circle-info ml-2"></i> معلومات</button>
-        </div>
-
-        <div class="mt-4 solid rounded-2xl p-3">
-          <div class="text-sm font-black mb-2">بحث وفلترة</div>
-          <input id="searchBox" class="w-full p-2 rounded-xl text-sm" placeholder="ابحث بالاسم أو الوصف..." />
-          <div class="grid grid-cols-2 gap-2 mt-2">
-            <select id="filterStock" class="w-full p-2 rounded-xl text-sm">
-              <option value="all">الكل</option>
-              <option value="low">نواقص فقط</option>
-              <option value="ok">متوفر فقط</option>
-            </select>
-            <select id="sortBy" class="w-full p-2 rounded-xl text-sm">
-              <option value="order">حسب الترتيب</option>
-              <option value="name">الاسم</option>
-              <option value="remaining">المتبقي</option>
-              <option value="value">القيمة</option>
-            </select>
-          </div>
-        </div>
-
-        <div class="mt-4 solid rounded-2xl p-3">
-          <div class="text-sm font-black mb-2">إعدادات سريعة</div>
-          <label class="flex items-center justify-between text-sm">
-            <span class="text-slate-300">حد النقص</span>
-            <input id="lowThreshold" type="number" step="1" class="w-20 p-2 rounded-xl text-center" />
-          </label>
-          <label class="flex items-center justify-between text-sm mt-2">
-            <span class="text-slate-300">رمز العملة</span>
-            <input id="currency" type="text" class="w-20 p-2 rounded-xl text-center" />
-          </label>
-          <div class="text-xs text-slate-400 mt-2">يقدر الأدمن يخليها إعدادات مشتركة لكل الأجهزة.</div>
-        </div>
-      </aside>
-
-      <!-- Main -->
-      <main class="col-span-12 md:col-span-9 lg:col-span-9 space-y-4">
-        <!-- KPIs -->
-        <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
-          <div class="glass rounded-2xl p-4 kpi">
-            <div id="lblTotalValue" class="text-[11px] md:text-xs" style="color:var(--muted);">إجمالي القيمة</div>
-            <div id="totalValue" class="text-sm md:text-lg font-black" style="color:var(--brand);">0</div>
-          </div>
-          <div class="glass rounded-2xl p-4 kpi">
-            <div id="lblTotalItems" class="text-[11px] md:text-xs" style="color:var(--muted);">عدد المواد</div>
-            <div id="totalItems" class="text-sm md:text-lg font-black">0</div>
-          </div>
-          <div class="glass rounded-2xl p-4 kpi bad">
-            <div id="lblLowStock" class="text-[11px] md:text-xs" style="color:var(--muted);">نواقص</div>
-            <div id="lowStockCount" class="text-sm md:text-lg font-black" style="color:var(--bad);">0</div>
-          </div>
-          <div class="glass rounded-2xl p-4 kpi good">
-            <div id="lblTotalSpent" class="text-[11px] md:text-xs" style="color:var(--muted);">إجمالي المصروف</div>
-            <div id="totalSpent" class="text-sm md:text-lg font-black" style="color:var(--good);">0</div>
-          </div>
-        </div>
-
-        <!-- Add Form (admin only enabled) -->
-        <div class="glass rounded-2xl p-4">
-          <div class="flex items-center justify-between mb-3">
-            <div class="font-black">إضافة مادة</div>
-            <div class="chip" id="adminHint">سجّل دخول كأدمن حتى تقدر تعدّل</div>
-          </div>
-
-          <form id="addForm" class="grid grid-cols-2 md:grid-cols-6 gap-3">
-            <div class="col-span-2 md:col-span-2">
-              <input id="name" class="w-full p-2 rounded-xl text-sm" placeholder="المادة..." required />
-            </div>
-            <div class="col-span-2 md:col-span-2">
-              <input id="desc" class="w-full p-2 rounded-xl text-sm" placeholder="الوصف..." />
-            </div>
-            <div>
-              <input id="start" type="number" step="any" class="w-full p-2 rounded-xl text-sm inp-start" placeholder="البداية" />
-            </div>
-            <div>
-              <input id="cost" type="number" step="any" class="w-full p-2 rounded-xl text-sm" placeholder="سعر CC" />
-            </div>
-
-            <div class="col-span-2 md:col-span-6">
-              <button id="btnAdd" type="submit" class="btn btn-primary w-full text-white font-black">
-                إضافة <i class="fa-solid fa-plus mr-1"></i>
-              </button>
-            </div>
-          </form>
-        </div>
-
-        <!-- Table -->
-        <div class="glass rounded-2xl overflow-hidden shadow-2xl">
-          <div class="flex items-center justify-between px-4 py-3 border-b" style="border-color:var(--border);">
-            <div class="font-black">المواد</div>
-            <div class="flex items-center gap-2 text-xs">
-              <span class="chip">اسحب للتغيير: <i class="fa-solid fa-grip-vertical"></i></span>
-              <span class="chip" id="rowCount">0 صف</span>
-            </div>
-          </div>
-
-          <div class="overflow-x-auto tableWrap">
-            <table class="w-full text-right border-collapse">
-              <thead>
-                <tr class="border-b" style="border-color:var(--border);">
-                  <th class="p-3 text-center w-8">#</th>
-                  <th class="p-3">المادة</th>
-                  <th class="p-3">الوصف</th>
-                  <th class="p-3 text-center">البداية</th>
-                  <th class="p-3 text-center">مشتريات</th>
-                  <th class="p-3 text-center">مصروف</th>
-                  <th class="p-3 text-center">المتبقي</th>
-                  <th class="p-3 text-center">سعر CC</th>
-                  <th class="p-3 text-center">القيمة</th>
-                  <th class="p-3 text-center">الحالة</th>
-                  <th class="p-3 text-center">حذف</th>
-                </tr>
-              </thead>
-              <tbody id="tableBody"></tbody>
-            </table>
-          </div>
-
-          <div id="emptyState" class="p-6 text-center hidden">
-            <div class="text-3xl mb-2">📦</div>
-            <div class="font-black">لا يوجد بيانات حالياً</div>
-            <div class="text-sm mt-1" style="color:var(--muted);">إذا أنت الأدمن، ابدأ بإضافة مواد.</div>
-          </div>
-        </div>
-
-        <!-- Reports -->
-        <div id="reports" class="glass rounded-2xl p-4 hidden">
-          <div class="font-black mb-3">تقارير سريعة</div>
-          <div class="grid md:grid-cols-2 gap-3">
-            <div class="solid rounded-2xl p-4">
-              <div class="text-sm font-black mb-2">أعلى 5 مواد بالقيمة</div>
-              <div id="topValueList" class="text-sm" style="color:var(--muted);"></div>
-            </div>
-            <div class="solid rounded-2xl p-4">
-              <div class="text-sm font-black mb-2">نواقص (حسب الحد)</div>
-              <div id="lowList" class="text-sm" style="color:var(--muted);"></div>
-            </div>
-          </div>
-        </div>
-
-        <!-- About -->
-        <div id="about" class="glass rounded-2xl p-4 hidden">
-          <div class="font-black mb-2">معلومات</div>
-          <div class="text-sm" style="color:var(--muted); line-height:1.8;">
-            - القراءة متاحة للجميع.<br/>
-            - التعديل للأدمن فقط (Email/Password).<br/>
-            - كل تغيير يتزامن فوراً بين الموبايل والحاسبة عبر Firestore.<br/>
-          </div>
-        </div>
-      </main>
-    </div>
-  </div>
-
-  <!-- Toasts -->
-  <div class="toast" id="toast"></div>
-
-  <!-- Modal: Admin Login -->
-  <div id="modalLoginBack" class="modalBack">
-    <div class="glass modal p-5">
-      <div class="flex items-center justify-between mb-4">
-        <div class="font-black text-lg"><i class="fa-solid fa-user-shield ml-2"></i> دخول الأدمن</div>
-        <button class="btn" onclick="UI.closeLogin()"><i class="fa-solid fa-xmark"></i></button>
-      </div>
-
-      <div class="grid md:grid-cols-2 gap-4">
-        <div class="solid rounded-2xl p-4">
-          <div class="font-black mb-2">تسجيل الدخول</div>
-          <div class="text-sm mb-3" style="color:var(--muted);">استخدم حساب Email/Password الموجود في Firebase Auth.</div>
-
-          <input id="adminEmail" type="email" class="w-full p-2 rounded-xl text-sm mb-2" placeholder="admin@email.com" />
-          <input id="adminPass" type="password" class="w-full p-2 rounded-xl text-sm mb-3" placeholder="Password" />
-
-          <button id="btnDoLogin" class="btn btn-primary text-white w-full font-black">دخول</button>
-        </div>
-
-        <div class="solid rounded-2xl p-4">
-          <div class="font-black mb-2">مهم للأمان ✅</div>
-          <div class="text-sm" style="color:var(--muted); line-height:1.8;">
-            راح نخلي Firestore Rules تخلي:<br/>
-            - <b>read: true</b><br/>
-            - <b>write: فقط UID الأدمن</b><br/><br/>
-            يعني حتى لو أحد فتح الكود، ما يكدر يكتب بالقاعدة بدون حساب الأدمن.
-          </div>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- Modal: Settings -->
-  <div id="modalSettingsBack" class="modalBack">
-    <div class="glass modal p-5">
-      <div class="flex items-center justify-between mb-4">
-        <div class="font-black text-lg"><i class="fa-solid fa-sliders ml-2"></i> الإعدادات</div>
-        <button class="btn" onclick="UI.closeSettings()"><i class="fa-solid fa-xmark"></i></button>
-      </div>
-
-      <div class="grid md:grid-cols-2 gap-4">
-        <div class="solid rounded-2xl p-4">
-          <div class="font-black mb-2">واجهة وثيمات</div>
-
-          <label class="text-sm block mb-2" style="color:var(--muted);">الثيم</label>
-          <select id="themeSelect" class="w-full p-2 rounded-xl text-sm mb-4">
+        <div class="flex flex-wrap gap-2 items-center">
+          <select id="themeSelect" class="p-2 rounded-lg text-sm">
             <option value="midnight">Midnight</option>
-            <option value="arctic">Arctic</option>
-            <option value="lavender">Lavender</option>
-            <option value="emerald">Emerald</option>
-            <option value="sunset">Sunset</option>
-            <option value="slateLight">Slate Light</option>
-            <option value="coffee">Coffee</option>
-            <option value="mono">Mono</option>
+            <option value="slate">Slate</option>
+            <option value="ivory">Ivory</option>
+            <option value="ocean">Ocean</option>
+            <option value="berry">Berry</option>
           </select>
 
-          <label class="text-sm block mb-2" style="color:var(--muted);">كثافة الجدول</label>
-          <select id="density" class="w-full p-2 rounded-xl text-sm">
-            <option value="compact">Compact</option>
-            <option value="normal">Normal</option>
-          </select>
-        </div>
-
-        <div class="solid rounded-2xl p-4">
-          <div class="font-black mb-2">نصوص وعناوين (للأدمن)</div>
-          <div class="text-sm mb-3" style="color:var(--muted);">تتخزن بالسحابة وتظهر للجميع.</div>
-
-          <input id="setTitle" class="w-full p-2 rounded-xl text-sm mb-2" placeholder="عنوان التطبيق" />
-          <div class="grid grid-cols-2 gap-2">
-            <input id="setLblTotalValue" class="w-full p-2 rounded-xl text-sm" placeholder="Label: إجمالي القيمة" />
-            <input id="setLblTotalItems" class="w-full p-2 rounded-xl text-sm" placeholder="Label: عدد المواد" />
-            <input id="setLblLowStock" class="w-full p-2 rounded-xl text-sm" placeholder="Label: نواقص" />
-            <input id="setLblTotalSpent" class="w-full p-2 rounded-xl text-sm" placeholder="Label: إجمالي المصروف" />
-          </div>
-
-          <button id="btnSaveCloudSettings" class="btn btn-primary text-white w-full font-black mt-3">
-            حفظ الإعدادات السحابية (أدمن فقط)
+          <button id="saveUiBtn" class="bg-slate-100 hover:bg-white text-slate-900 px-4 py-2 rounded-lg text-sm font-bold">
+            حفظ الإعدادات
           </button>
         </div>
+      </div>
+
+      <div class="grid grid-cols-1 md:grid-cols-4 gap-3 mt-3">
+        <input id="txtTitle" class="p-2 rounded-lg text-sm" placeholder="عنوان التطبيق" />
+        <input id="txtAdd" class="p-2 rounded-lg text-sm" placeholder="نص زر الإضافة" />
+        <input id="txtExport" class="p-2 rounded-lg text-sm" placeholder="نص زر التصدير" />
+        <input id="txtDownload" class="p-2 rounded-lg text-sm" placeholder="نص زر التحميل" />
+      </div>
+
+      <div class="mt-3 flex flex-col md:flex-row gap-2 items-start md:items-center justify-between">
+        <div class="text-xs text-slate-400">
+          ✅ القراءة للجميع. ✏️ التعديل للأدمن فقط (مع تسجيل دخول).
+        </div>
+
+        <div class="flex gap-2 items-center">
+          <button id="adminToggleBtn" class="px-4 py-2 rounded-lg text-sm text-white" style="background:var(--accent,#3b82f6)">
+            دخول أدمن
+          </button>
+          <button id="adminLogoutBtn" class="bg-slate-700 hover:bg-slate-600 text-white px-4 py-2 rounded-lg text-sm hidden">
+            خروج
+          </button>
+          <span id="adminState" class="text-xs text-slate-300">زائر</span>
+        </div>
+      </div>
+
+      <div id="adminBox" class="mt-3 hidden grid grid-cols-1 md:grid-cols-3 gap-3">
+        <input id="adminEmail" class="p-2 rounded-lg text-sm" placeholder="Admin Email" />
+        <input id="adminPass" type="password" class="p-2 rounded-lg text-sm" placeholder="Admin Password" />
+        <button id="doAdminLogin" class="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-lg text-sm font-bold">
+          تسجيل دخول
+        </button>
+        <div class="md:col-span-3 text-xs text-slate-400">
+          الأفضل تسوي حساب أدمن من Firebase Authentication (Email/Password) وتستخدمه هنا.
+        </div>
+      </div>
+    </div>
+
+    <!-- Stats -->
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
+      <div class="glass p-4 rounded-xl">
+        <p class="text-slate-400 text-[10px] md:text-xs mb-1">إجمالي القيمة المالية</p>
+        <h3 id="totalValue" class="text-sm md:text-lg font-bold text-blue-400">0 د.ع</h3>
+      </div>
+      <div class="glass p-4 rounded-xl">
+        <p class="text-slate-400 text-[10px] md:text-xs mb-1">عدد المواد</p>
+        <h3 id="totalItems" class="text-sm md:text-lg font-bold">0</h3>
+      </div>
+      <div class="glass p-4 rounded-xl border-r-4 border-red-500">
+        <p class="text-slate-400 text-[10px] md:text-xs mb-1">نواقص (≤ 2)</p>
+        <h3 id="lowStockCount" class="text-sm md:text-lg font-bold text-red-400">0</h3>
+      </div>
+      <div class="glass p-4 rounded-xl border-r-4 border-emerald-500">
+        <p class="text-slate-400 text-[10px] md:text-xs mb-1">إجمالي المصروف</p>
+        <h3 id="totalSpent" class="text-sm md:text-lg font-bold text-emerald-400">0</h3>
+      </div>
+    </div>
+
+    <!-- Add -->
+    <div class="glass p-4 rounded-xl mb-6">
+      <form id="addForm" class="grid grid-cols-2 md:grid-cols-5 gap-3">
+        <div class="col-span-2 md:col-span-1">
+          <input type="text" id="name" class="w-full p-2 rounded-lg text-sm" placeholder="المادة..." required />
+        </div>
+
+        <div class="col-span-2 md:col-span-2">
+          <input type="text" id="desc" class="w-full p-2 rounded-lg text-sm" placeholder="الوصف..." />
+        </div>
+
+        <div>
+          <input type="number" id="start" class="w-full p-2 rounded-lg text-sm" placeholder="البداية" step="any" />
+        </div>
+
+        <div>
+          <input type="number" id="cost" class="w-full p-2 rounded-lg text-sm" placeholder="سعر CC" step="any" />
+        </div>
+
+        <div class="col-span-2 md:col-span-5">
+          <button type="submit" id="addBtn" class="w-full bg-slate-100 hover:bg-white text-slate-900 py-2 rounded-lg font-bold text-sm shadow-lg active:scale-95 transition-all">
+            إضافة مادة <i class="fas fa-plus mr-1"></i>
+          </button>
+        </div>
+      </form>
+    </div>
+
+    <!-- Table -->
+    <div class="glass rounded-xl overflow-hidden shadow-2xl">
+      <div class="overflow-x-auto table-container">
+        <table class="w-full text-right border-collapse">
+          <thead>
+            <tr class="border-b border-slate-700">
+              <th class="p-3 text-center w-8">#</th>
+              <th class="p-3">المادة</th>
+              <th class="p-3">الوصف</th>
+              <th class="p-3 text-center text-emerald-300">البداية</th>
+              <th class="p-3 text-center text-sky-300">مشتريات</th>
+              <th class="p-3 text-center text-orange-300">مصروف</th>
+              <th class="p-3 text-center">المتبقي</th>
+              <th class="p-3 text-center">سعر CC</th>
+              <th class="p-3 text-center">القيمة الإجمالية</th>
+              <th class="p-3 text-center">الحالة</th>
+              <th class="p-3 text-center">حذف</th>
+            </tr>
+          </thead>
+          <tbody id="tableBody"></tbody>
+        </table>
       </div>
     </div>
   </div>
@@ -409,13 +230,10 @@
       onSnapshot,
       query,
       writeBatch,
-      setDoc,
-      getDoc
+      serverTimestamp
     } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-firestore.js";
 
-    // =========================
-    // 1) Firebase CONFIG  ✅ (غيّره لمشروعك)
-    // =========================
+    // ✅ Firebase config
     const firebaseConfig = {
       apiKey: "AIzaSyC_KaWOZVWJ5WvVhUjiz58dx6d6sWH1EZQ",
       authDomain: "clinic-storage.firebaseapp.com",
@@ -425,587 +243,337 @@
       appId: "1:284636281654:web:aa19cd577c4efda5d21197"
     };
 
-    // Shared appId for same data across devices
     const appId = "clinic-storage";
 
+    // ========= UI Settings =========
+    const THEMES = {
+      midnight: { bg: "#0f172a", accent: "#3b82f6", card: "rgba(30,41,59,0.65)", text:"#e2e8f0" },
+      slate:    { bg: "#0b1220", accent: "#22c55e", card: "rgba(15,23,42,0.70)", text:"#e2e8f0" },
+      ivory:    { bg: "#f8fafc", accent: "#2563eb", card: "rgba(255,255,255,0.82)", text:"#0f172a" },
+      ocean:    { bg: "#071a2b", accent: "#38bdf8", card: "rgba(56,189,248,0.10)", text:"#e2e8f0" },
+      berry:    { bg: "#160b1f", accent: "#a78bfa", card: "rgba(167,139,250,0.10)", text:"#e2e8f0" }
+    };
+
+    const DEFAULT_TEXTS = {
+      appTitle: "مخزن د. ثائر السحابي",
+      addButton: "إضافة مادة",
+      exportButton: "تصدير إكسل",
+      downloadButton: "تحميل النظام (HTML)"
+    };
+
+    const LOCAL_KEY = "clinic_ui_settings_v2";
+
+    function getLocalSettings(){
+      try {
+        return JSON.parse(localStorage.getItem(LOCAL_KEY) || "null") || { theme:"midnight", texts:{...DEFAULT_TEXTS} };
+      } catch {
+        return { theme:"midnight", texts:{...DEFAULT_TEXTS} };
+      }
+    }
+    function saveLocalSettings(s){ localStorage.setItem(LOCAL_KEY, JSON.stringify(s)); }
+
+    function applyTheme(themeId){
+      const t = THEMES[themeId] || THEMES.midnight;
+      document.body.style.background = t.bg;
+      document.body.style.color = t.text;
+      document.documentElement.style.setProperty("--accent", t.accent);
+
+      document.querySelectorAll(".glass").forEach(el=>{
+        el.style.background = t.card;
+        el.style.borderColor = "rgba(255,255,255,0.08)";
+      });
+    }
+
+    function applyTexts(texts){
+      $("appTitle").textContent = texts.appTitle || DEFAULT_TEXTS.appTitle;
+      $("btnDownloadTxt").textContent = texts.downloadButton || DEFAULT_TEXTS.downloadButton;
+      $("btnExportTxt").textContent = texts.exportButton || DEFAULT_TEXTS.exportButton;
+      $("addBtn").innerHTML = `${texts.addButton || DEFAULT_TEXTS.addButton} <i class="fas fa-plus mr-1"></i>`;
+    }
+
+    function applyLocalSettings(){
+      const s = getLocalSettings();
+      applyTheme(s.theme);
+      applyTexts(s.texts);
+
+      $("themeSelect").value = s.theme;
+      $("txtTitle").value = s.texts.appTitle || "";
+      $("txtAdd").value = s.texts.addButton || "";
+      $("txtExport").value = s.texts.exportButton || "";
+      $("txtDownload").value = s.texts.downloadButton || "";
+    }
+
+    // ========= Firebase =========
     const app = initializeApp(firebaseConfig);
     const auth = getAuth(app);
     const db = getFirestore(app);
 
-    // =========================
-    // 2) State
-    // =========================
-    let currentUser = null;
-    let isAdmin = false;
     let inventory = [];
     let sortableInited = false;
+    let isAdmin = false;
 
-    // Local settings
-    const LS_KEY = "clinic_storage_ui_v2";
-    const local = loadLocalSettings();
-    applyLocalSettings(local);
-
-    // Cloud settings doc (public read; admin write)
-    const cloudSettingsRef = doc(db, "artifacts", appId, "public", "data", "settings", "ui");
-
-    // =========================
-    // 3) Helpers / UI
-    // =========================
-    const $ = (id) => document.getElementById(id);
     const esc = (v) => String(v ?? "").replace(/"/g, "&quot;");
 
-    function toast(type, title, msg){
-      const box = $("toast");
-      const icon = type==="ok" ? "fa-circle-check" : type==="warn" ? "fa-triangle-exclamation" : "fa-circle-xmark";
-      const color = type==="ok" ? "var(--good)" : type==="warn" ? "var(--warn)" : "var(--bad)";
-      const el = document.createElement("div");
-      el.className = "item";
-      el.innerHTML = `
-        <div style="margin-top:2px;color:${color};"><i class="fa-solid ${icon}"></i></div>
-        <div>
-          <div class="title">${esc(title)}</div>
-          <div class="msg">${esc(msg||"")}</div>
-        </div>
-      `;
-      box.appendChild(el);
-      setTimeout(()=>{ el.style.opacity="0"; el.style.transform="translateY(6px)"; }, 3500);
-      setTimeout(()=>{ el.remove(); }, 4200);
+    function invCol(){
+      return collection(db, "artifacts", appId, "public", "data", "inventory");
     }
 
-    function setStatus(state, text){
+    function setStatus(cls, htmlOrText){
       const s = $("syncStatus");
-      if(!s) return;
-      if(state==="online"){
-        s.className = "chip";
-        s.innerHTML = `<i class="fa-solid fa-circle text-[8px]" style="color:var(--good)"></i> ${text||"متصل"}`;
-      }else if(state==="offline"){
-        s.className = "chip";
-        s.innerHTML = `<i class="fa-solid fa-circle text-[8px]" style="color:var(--bad)"></i> ${text||"Offline"}`;
-      }else{
-        s.className = "chip";
-        s.innerHTML = `<i class="fa-solid fa-circle-notch fa-spin"></i> ${text||"جاري الاتصال..."}`;
-      }
+      s.className = cls;
+      if (htmlOrText.includes("<")) s.innerHTML = htmlOrText;
+      else s.textContent = htmlOrText;
     }
 
-    function setAdminUI(){
-      $("modeBadge").textContent = isAdmin ? "Admin" : "قراءة فقط";
-      $("adminHint").textContent = isAdmin ? "أنت أدمن: الإضافة/التعديل متاحة" : "سجّل دخول كأدمن حتى تقدر تعدّل";
-      $("btnAdmin").classList.toggle("hidden", isAdmin);
-      $("btnLogout").classList.toggle("hidden", !isAdmin);
+    function setAdminUI(state, email=""){
+      isAdmin = state;
 
-      // enable/disable add form
-      $("name").disabled = !isAdmin;
-      $("desc").disabled = !isAdmin;
-      $("start").disabled = !isAdmin;
-      $("cost").disabled = !isAdmin;
-      $("btnAdd").disabled = !isAdmin;
-      $("btnAdd").style.opacity = isAdmin ? "1" : ".55";
+      $("adminState").textContent = state ? `أدمن: ${email || ""}` : "زائر";
+      $("adminLogoutBtn").classList.toggle("hidden", !state);
+
+      // disable edits if not admin
+      document.querySelectorAll("#tableBody input, #addForm input, #addForm button[type='submit']").forEach(el=>{
+        el.disabled = !isAdmin;
+        el.style.opacity = isAdmin ? "1" : "0.75";
+      });
+      document.querySelectorAll("#tableBody button").forEach(btn=>{
+        btn.disabled = !isAdmin;
+        btn.style.opacity = isAdmin ? "1" : "0.5";
+        btn.style.pointerEvents = isAdmin ? "auto" : "none";
+      });
     }
 
-    // Sidebar view switching
-    function showView(view){
-      const reports = $("reports");
-      const about = $("about");
-      reports.classList.toggle("hidden", view !== "reports");
-      about.classList.toggle("hidden", view !== "about");
-    }
-
-    // =========================
-    // 4) Collections/Refs
-    // =========================
-    const invCol = () => collection(db, "artifacts", appId, "public", "data", "inventory");
-
-    // =========================
-    // 5) Auth logic (Anonymous for guests + Email/Pass for admin)
-    // =========================
-    async function initGuestAuth(){
-      try{
-        await signInAnonymously(auth);
-      }catch(err){
-        console.error(err);
-        setStatus("offline", err?.code || "Auth error");
-        toast("err","فشل الاتصال","تأكد Anonymous Auth مفعل + Firestore Rules.");
-      }
-    }
-
-    async function adminLogin(email, pass){
-      try{
-        await signInWithEmailAndPassword(auth, email, pass);
-        toast("ok","تم الدخول","أهلاً بالأدمن ✅");
-        UI.closeLogin();
-      }catch(err){
-        console.error(err);
-        toast("err","فشل الدخول", err?.code || err?.message || "Login error");
-      }
-    }
-
-    async function logout(){
-      try{
-        await signOut(auth);
-        toast("ok","تم الخروج","رجعنا للوضع قراءة فقط");
-        // After signOut, auto guest auth
-        await initGuestAuth();
-      }catch(e){
-        console.error(e);
-      }
-    }
-
-    onAuthStateChanged(auth, async (user)=>{
-      currentUser = user;
-      if(!user){
-        isAdmin = false;
-        setAdminUI();
-        setStatus("connecting","جاري الاتصال...");
-        return;
-      }
-
-      // Admin detection: if NOT anonymous => treat as admin
-      isAdmin = !user.isAnonymous;
-      setAdminUI();
-
-      $("userDisplay").textContent = `UID: ${user.uid.substring(0,8)}${isAdmin ? " (admin)" : ""}`;
-      setStatus("online", "متصل سحابياً");
-
-      // Start realtime (once)
-      startRealtime();
-      listenCloudSettings();
+    // ========= UI events =========
+    $("themeSelect").addEventListener("change", ()=>{
+      const s = getLocalSettings();
+      s.theme = $("themeSelect").value;
+      saveLocalSettings(s);
+      applyLocalSettings();
     });
 
-    // =========================
-    // 6) Firestore realtime
-    // =========================
-    let unsubInv = null;
+    $("saveUiBtn").addEventListener("click", ()=>{
+      const s = getLocalSettings();
+      s.texts = {
+        appTitle: $("txtTitle").value.trim() || DEFAULT_TEXTS.appTitle,
+        addButton: $("txtAdd").value.trim() || DEFAULT_TEXTS.addButton,
+        exportButton: $("txtExport").value.trim() || DEFAULT_TEXTS.exportButton,
+        downloadButton: $("txtDownload").value.trim() || DEFAULT_TEXTS.downloadButton
+      };
+      saveLocalSettings(s);
+      applyLocalSettings();
+    });
+
+    $("adminToggleBtn").addEventListener("click", ()=>{
+      $("adminBox").classList.toggle("hidden");
+      $("adminBox").classList.toggle("grid");
+    });
+
+    $("doAdminLogin").addEventListener("click", async ()=>{
+      const email = $("adminEmail").value.trim();
+      const pass  = $("adminPass").value.trim();
+      if (!email || !pass) return alert("اكتب الإيميل والباسورد");
+      try {
+        const cred = await signInWithEmailAndPassword(auth, email, pass);
+        setAdminUI(true, cred.user.email || "");
+      } catch (e) {
+        console.error(e);
+        alert("فشل تسجيل دخول الأدمن");
+      }
+    });
+
+    $("adminLogoutBtn").addEventListener("click", async ()=>{
+      await signOut(auth);
+    });
+
+    // ========= Realtime =========
     function startRealtime(){
-      if(unsubInv) return;
       const q = query(invCol());
-      unsubInv = onSnapshot(q, (snap)=>{
-        inventory = snap.docs.map(d=>({id:d.id, ...d.data()}))
-          .sort((a,b)=>(a.order||0)-(b.order||0));
-        render();
-        $("kpiUpdated").textContent = "آخر تحديث: " + new Date().toLocaleTimeString("ar-IQ");
+      onSnapshot(q, (snap)=>{
+        inventory = snap.docs.map(d=>({id:d.id, ...d.data()})).sort((a,b)=>(a.order||0)-(b.order||0));
+        renderTable();
       }, (err)=>{
         console.error(err);
-        setStatus("offline", err?.code || "Firestore error");
-        toast("err","Firestore","تأكد القواعد Rules صحيحة.");
+        setStatus("status-offline", "فشل الاتصال: " + (err?.code || err?.message || "Firestore error"));
       });
     }
 
-    function listenCloudSettings(){
-      onSnapshot(cloudSettingsRef, (snap)=>{
-        if(!snap.exists()) return;
-        const s = snap.data() || {};
-        applyCloudSettings(s);
-      });
-    }
-
-    // =========================
-    // 7) Admin-only write ops
-    // =========================
     window.updateField = async (id, field, value)=>{
-      if(!isAdmin) return toast("warn","قراءة فقط","التعديل للأدمن فقط");
-      const isText = field==="name" || field==="desc";
+      if (!isAdmin) return alert("التعديل للأدمن فقط");
+      const isText = field === "name" || field === "desc";
       const val = isText ? (value ?? "") : (parseFloat(value) || 0);
-      try{
-        await updateDoc(doc(db, "artifacts", appId, "public", "data", "inventory", id), { [field]: val });
-      }catch(err){
-        console.error(err);
-        toast("err","فشل التحديث", err?.code || "Update error");
-      }
+
+      await updateDoc(doc(db, "artifacts", appId, "public", "data", "inventory", id), {
+        [field]: val,
+        updatedAt: serverTimestamp()
+      });
     };
 
     window.deleteItem = async (id)=>{
-      if(!isAdmin) return toast("warn","قراءة فقط","الحذف للأدمن فقط");
-      if(!confirm("حذف نهائي؟")) return;
-      try{
-        await deleteDoc(doc(db, "artifacts", appId, "public", "data", "inventory", id));
-        toast("ok","تم الحذف","");
-      }catch(err){
-        console.error(err);
-        toast("err","فشل الحذف", err?.code || "Delete error");
-      }
+      if (!isAdmin) return alert("الحذف للأدمن فقط");
+      if (!confirm("حذف نهائي؟")) return;
+      await deleteDoc(doc(db, "artifacts", appId, "public", "data", "inventory", id));
     };
 
-    // Add
     $("addForm").addEventListener("submit", async (e)=>{
       e.preventDefault();
-      if(!isAdmin) return toast("warn","قراءة فقط","الإضافة للأدمن فقط");
+      if (!isAdmin) return alert("الإضافة للأدمن فقط");
 
-      const name = ($("name").value||"").trim();
-      const desc = ($("desc").value||"").trim();
-      const start = parseFloat($("start").value)||0;
-      const cost = parseFloat($("cost").value)||0;
-      if(!name) return;
+      const name = $("name").value.trim();
+      const desc = $("desc").value.trim();
+      const start = parseFloat($("start").value) || 0;
+      const cost  = parseFloat($("cost").value) || 0;
 
-      const data = { name, desc, start, bought:0, spent:0, cost, order: inventory.length, createdAt: Date.now() };
+      if (!name) return;
 
-      try{
-        await addDoc(invCol(), data);
-        e.target.reset();
-        toast("ok","تمت الإضافة","");
-      }catch(err){
-        console.error(err);
-        toast("err","فشل الإضافة", err?.code || "Add error");
-      }
+      await addDoc(invCol(), {
+        name, desc,
+        start,
+        bought: 0,
+        spent: 0,
+        cost,
+        order: inventory.length,
+        createdAt: Date.now(),
+        updatedAt: serverTimestamp()
+      });
+
+      e.target.reset();
     });
 
-    // Sort order (admin only)
+    function renderTable(){
+      const body = $("tableBody");
+      body.innerHTML = "";
+
+      let totalVal = 0, totalSpent = 0, low = 0;
+
+      inventory.forEach((item)=>{
+        const start = Number(item.start)||0;
+        const bought = Number(item.bought)||0;
+        const spent = Number(item.spent)||0;
+        const cost = Number(item.cost)||0;
+
+        const remaining = (start + bought) - spent;
+        const rowValue = remaining * cost;
+
+        totalVal += rowValue;
+        totalSpent += spent;
+        if (remaining <= 2) low++;
+
+        const statusText = remaining <= 2 ? "نقص" : "متوفر";
+        const statusClass = remaining <= 2 ? "text-red-400 font-bold" : "text-emerald-400 font-bold";
+
+        const tr = document.createElement("tr");
+        tr.className = "border-b border-slate-800 hover:bg-slate-800/40 transition-colors";
+        tr.setAttribute("data-id", item.id);
+
+        tr.innerHTML = `
+          <td class="p-2 text-center"><i class="fas fa-grip-vertical handle"></i></td>
+
+          <td class="p-2">
+            <input ${isAdmin?"":"disabled"} type="text" value="${esc(item.name)}"
+              onblur="updateField('${item.id}','name',this.value)"
+              class="name-input w-full bg-transparent border-none focus:ring-1 focus:ring-blue-500 font-bold rounded px-2">
+          </td>
+
+          <td class="p-2">
+            <input ${isAdmin?"":"disabled"} type="text" value="${esc(item.desc)}"
+              onblur="updateField('${item.id}','desc',this.value)"
+              class="desc-input w-full bg-transparent border-none focus:ring-1 focus:ring-blue-500 rounded px-2">
+          </td>
+
+          <td class="p-2 text-center">
+            <input ${isAdmin?"":"disabled"} type="number" step="any" value="${start}"
+              onchange="updateField('${item.id}','start',this.value)"
+              class="table-input w-20 p-1 rounded text-center font-bold
+                     text-emerald-300 bg-emerald-500/10 border border-emerald-500/30">
+          </td>
+
+          <td class="p-2 text-center">
+            <input ${isAdmin?"":"disabled"} type="number" step="any" value="${bought}"
+              onchange="updateField('${item.id}','bought',this.value)"
+              class="table-input w-20 p-1 rounded text-center font-bold
+                     text-sky-300 bg-sky-500/10 border border-sky-500/30">
+          </td>
+
+          <td class="p-2 text-center">
+            <input ${isAdmin?"":"disabled"} type="number" step="any" value="${spent}"
+              onchange="updateField('${item.id}','spent',this.value)"
+              class="table-input w-20 p-1 rounded text-center font-bold
+                     text-orange-300 bg-orange-500/10 border border-orange-500/30">
+          </td>
+
+          <td class="p-2 text-center font-bold ${remaining<=2?"text-red-400":"text-slate-200"}">${remaining}</td>
+
+          <td class="p-2 text-center">
+            <input ${isAdmin?"":"disabled"} type="number" step="any" value="${cost}"
+              onchange="updateField('${item.id}','cost',this.value)"
+              class="table-input w-24 p-1 rounded text-center">
+          </td>
+
+          <td class="p-2 text-center font-bold text-blue-400 text-xs">${Number.isFinite(rowValue)?rowValue.toLocaleString():"0"}</td>
+
+          <td class="p-2 text-center ${statusClass}">${statusText}</td>
+
+          <td class="p-2 text-center">
+            <button ${isAdmin?"":"disabled"} onclick="deleteItem('${item.id}')"
+              class="text-slate-500 hover:text-red-500 transition-colors">
+              <i class="fas fa-trash-alt"></i>
+            </button>
+          </td>
+        `;
+        body.appendChild(tr);
+      });
+
+      $("totalValue").innerText = totalVal.toLocaleString() + " د.ع";
+      $("totalItems").innerText = inventory.length;
+      $("lowStockCount").innerText = low;
+      $("totalSpent").innerText = totalSpent;
+
+      ensureSortable();
+    }
+
     function ensureSortable(){
-      if(sortableInited) return;
-      if(typeof Sortable === "undefined") return;
+      if (sortableInited) return;
+      if (typeof Sortable === "undefined") return;
 
       Sortable.create($("tableBody"), {
         handle: ".handle",
         animation: 150,
         onEnd: async ()=>{
-          if(!isAdmin) return toast("warn","قراءة فقط","الترتيب للأدمن فقط");
-          try{
-            const batch = writeBatch(db);
-            document.querySelectorAll("#tableBody tr").forEach((row, idx)=>{
-              const id = row.getAttribute("data-id");
-              if(id) batch.update(doc(db, "artifacts", appId, "public", "data", "inventory", id), { order: idx });
-            });
-            await batch.commit();
-            toast("ok","تم حفظ الترتيب","");
-          }catch(err){
-            console.error(err);
-            toast("err","فشل حفظ الترتيب", err?.code || "Sort error");
-          }
+          if (!isAdmin) return;
+          const batch = writeBatch(db);
+          document.querySelectorAll("#tableBody tr").forEach((row, idx)=>{
+            const id = row.getAttribute("data-id");
+            if (!id) return;
+            batch.update(doc(db, "artifacts", appId, "public", "data", "inventory", id), { order: idx });
+          });
+          await batch.commit();
         }
       });
 
       sortableInited = true;
     }
 
-    // =========================
-    // 8) Render + Filters
-    // =========================
-    function getFiltered(){
-      const q = ($("searchBox").value||"").trim().toLowerCase();
-      const stock = $("filterStock").value;
-      const sortBy = $("sortBy").value;
-      const th = Number(local.lowThreshold ?? 2);
-
-      let rows = inventory.filter(it=>{
-        const name = String(it.name||"").toLowerCase();
-        const desc = String(it.desc||"").toLowerCase();
-        const okSearch = !q || name.includes(q) || desc.includes(q);
-
-        const remaining = (Number(it.start)||0) + (Number(it.bought)||0) - (Number(it.spent)||0);
-        const isLow = remaining <= th;
-
-        const okStock = stock==="all" || (stock==="low" && isLow) || (stock==="ok" && !isLow);
-        return okSearch && okStock;
-      });
-
-      rows.sort((a,b)=>{
-        if(sortBy==="name") return String(a.name||"").localeCompare(String(b.name||""), "ar");
-        if(sortBy==="remaining"){
-          const ra = (Number(a.start)||0)+(Number(a.bought)||0)-(Number(a.spent)||0);
-          const rb = (Number(b.start)||0)+(Number(b.bought)||0)-(Number(b.spent)||0);
-          return rb-ra;
-        }
-        if(sortBy==="value"){
-          const va = ((Number(a.start)||0)+(Number(a.bought)||0)-(Number(a.spent)||0))*(Number(a.cost)||0);
-          const vb = ((Number(b.start)||0)+(Number(b.bought)||0)-(Number(b.spent)||0))*(Number(b.cost)||0);
-          return vb-va;
-        }
-        return (a.order||0)-(b.order||0);
-      });
-
-      return rows;
-    }
-
-    function render(){
-      const body = $("tableBody");
-      const th = Number(local.lowThreshold ?? 2);
-      const cur = local.currency ?? "د.ع";
-
-      const rows = getFiltered();
-      body.innerHTML = "";
-
-      $("rowCount").textContent = rows.length + " صف";
-
-      let totalVal=0, totalSpent=0, lowCount=0;
-
-      for(const item of rows){
-        const start = Number(item.start)||0;
-        const bought = Number(item.bought)||0;
-        const spent = Number(item.spent)||0;
-        const cost = Number(item.cost)||0;
-        const remaining = (start+bought)-spent;
-        const value = remaining*cost;
-
-        totalVal += value;
-        totalSpent += spent;
-        if(remaining <= th) lowCount++;
-
-        const statusText = remaining <= th ? "نقص" : "متوفر";
-        const statusClass = remaining <= th ? "text-red-300 font-black" : "text-emerald-300 font-black";
-
-        const tr = document.createElement("tr");
-        tr.className = "border-b hover:bg-white/5 transition-colors";
-        tr.style.borderColor = "var(--border)";
-        tr.setAttribute("data-id", item.id);
-
-        const ro = !isAdmin ? "disabled" : "";
-        const delDisabled = !isAdmin ? "opacity:.35;pointer-events:none" : "";
-
-        tr.innerHTML = `
-          <td class="p-2 text-center"><i class="fa-solid fa-grip-vertical handle"></i></td>
-
-          <td class="p-2">
-            <input ${ro} class="name-input w-full p-2 rounded-xl text-sm"
-              value="${esc(item.name)}"
-              onblur="updateField('${item.id}','name',this.value)" />
-          </td>
-
-          <td class="p-2">
-            <input ${ro} class="desc-input w-full p-2 rounded-xl text-sm"
-              value="${esc(item.desc)}"
-              onblur="updateField('${item.id}','desc',this.value)" />
-          </td>
-
-          <td class="p-2 text-center">
-            <input ${ro} type="number" step="any" class="table-input w-20 p-2 rounded-xl text-center inp-start"
-              value="${start}"
-              onchange="updateField('${item.id}','start',this.value)" />
-          </td>
-
-          <td class="p-2 text-center">
-            <input ${ro} type="number" step="any" class="table-input w-20 p-2 rounded-xl text-center inp-buy"
-              value="${bought}"
-              onchange="updateField('${item.id}','bought',this.value)" />
-          </td>
-
-          <td class="p-2 text-center">
-            <input ${ro} type="number" step="any" class="table-input w-20 p-2 rounded-xl text-center inp-spent"
-              value="${spent}"
-              onchange="updateField('${item.id}','spent',this.value)" />
-          </td>
-
-          <td class="p-2 text-center font-black ${remaining <= th ? "text-red-300" : ""}">
-            ${remaining}
-          </td>
-
-          <td class="p-2 text-center">
-            <input ${ro} type="number" step="any" class="table-input w-24 p-2 rounded-xl text-center"
-              value="${cost}"
-              onchange="updateField('${item.id}','cost',this.value)" />
-          </td>
-
-          <td class="p-2 text-center font-black" style="color:var(--brand);">
-            ${Number.isFinite(value) ? value.toLocaleString("ar-IQ") : "0"} ${esc(cur)}
-          </td>
-
-          <td class="p-2 text-center ${statusClass}">${statusText}</td>
-
-          <td class="p-2 text-center" style="${delDisabled}">
-            <button class="btn" onclick="deleteItem('${item.id}')" title="حذف">
-              <i class="fa-solid fa-trash"></i>
-            </button>
-          </td>
-        `;
-
-        body.appendChild(tr);
-      }
-
-      $("emptyState").classList.toggle("hidden", rows.length !== 0);
-
-      $("totalValue").textContent = totalVal.toLocaleString("ar-IQ") + " " + cur;
-      $("totalItems").textContent = inventory.length.toLocaleString("ar-IQ");
-      $("lowStockCount").textContent = lowCount.toLocaleString("ar-IQ");
-      $("totalSpent").textContent = totalSpent.toLocaleString("ar-IQ");
-
-      renderReports();
-
-      ensureSortable();
-    }
-
-    function renderReports(){
-      const th = Number(local.lowThreshold ?? 2);
-      const cur = local.currency ?? "د.ع";
-
-      const all = [...inventory];
-      const withValue = all.map(i=>{
-        const remaining = (Number(i.start)||0)+(Number(i.bought)||0)-(Number(i.spent)||0);
-        const value = remaining*(Number(i.cost)||0);
-        return { ...i, remaining, value };
-      });
-
-      const top = withValue.sort((a,b)=>b.value-a.value).slice(0,5);
-      $("topValueList").innerHTML = top.length
-        ? top.map(x=>`<div class="flex justify-between py-1"><span>${esc(x.name||"")}</span><span class="font-black">${x.value.toLocaleString("ar-IQ")} ${esc(cur)}</span></div>`).join("")
-        : `<div>لا يوجد</div>`;
-
-      const low = withValue.filter(x=>x.remaining<=th).sort((a,b)=>a.remaining-b.remaining).slice(0,10);
-      $("lowList").innerHTML = low.length
-        ? low.map(x=>`<div class="flex justify-between py-1"><span>${esc(x.name||"")}</span><span class="font-black" style="color:var(--bad)">${x.remaining}</span></div>`).join("")
-        : `<div>لا يوجد</div>`;
-    }
-
-    // Re-render on filter changes
-    ["searchBox","filterStock","sortBy"].forEach(id=>{
-      $(id).addEventListener("input", ()=>render());
-      $(id).addEventListener("change", ()=>render());
-    });
-
-    // =========================
-    // 9) Local settings (theme, threshold, currency, density)
-    // =========================
-    function loadLocalSettings(){
-      try{
-        return JSON.parse(localStorage.getItem(LS_KEY) || "{}");
-      }catch{
-        return {};
-      }
-    }
-    function saveLocalSettings(){
-      localStorage.setItem(LS_KEY, JSON.stringify(local));
-    }
-    function applyLocalSettings(s){
-      // defaults
-      if(s.theme) document.body.setAttribute("data-theme", s.theme);
-      if(s.density==="compact"){
-        document.documentElement.style.setProperty("--rowPad","6px");
-      }
-      // sidebar quick inputs
-      if($("lowThreshold")) $("lowThreshold").value = s.lowThreshold ?? 2;
-      if($("currency")) $("currency").value = s.currency ?? "د.ع";
-    }
-
-    // Sidebar quick setting updates
-    $("lowThreshold").value = local.lowThreshold ?? 2;
-    $("currency").value = local.currency ?? "د.ع";
-
-    $("lowThreshold").addEventListener("input", ()=>{
-      local.lowThreshold = Number($("lowThreshold").value || 2);
-      saveLocalSettings();
-      render();
-    });
-    $("currency").addEventListener("input", ()=>{
-      local.currency = $("currency").value || "د.ع";
-      saveLocalSettings();
-      render();
-    });
-
-    // =========================
-    // 10) Cloud settings (admin only save)
-    // =========================
-    function applyCloudSettings(s){
-      if(s.title) $("appTitle").textContent = s.title;
-      if(s.lblTotalValue) $("lblTotalValue").textContent = s.lblTotalValue;
-      if(s.lblTotalItems) $("lblTotalItems").textContent = s.lblTotalItems;
-      if(s.lblLowStock) $("lblLowStock").textContent = s.lblLowStock;
-      if(s.lblTotalSpent) $("lblTotalSpent").textContent = s.lblTotalSpent;
-
-      // Put into settings modal inputs
-      $("setTitle").value = s.title || "";
-      $("setLblTotalValue").value = s.lblTotalValue || "";
-      $("setLblTotalItems").value = s.lblTotalItems || "";
-      $("setLblLowStock").value = s.lblLowStock || "";
-      $("setLblTotalSpent").value = s.lblTotalSpent || "";
-    }
-
-    async function saveCloudSettings(){
-      if(!isAdmin) return toast("warn","قراءة فقط","حفظ الإعدادات للأدمن فقط");
-
-      const payload = {
-        title: $("setTitle").value || "مخزن د. ثائر",
-        lblTotalValue: $("setLblTotalValue").value || "إجمالي القيمة",
-        lblTotalItems: $("setLblTotalItems").value || "عدد المواد",
-        lblLowStock: $("setLblLowStock").value || "نواقص",
-        lblTotalSpent: $("setLblTotalSpent").value || "إجمالي المصروف",
-        updatedAt: Date.now(),
-        updatedBy: currentUser?.uid || null
-      };
-
-      try{
-        await setDoc(cloudSettingsRef, payload, { merge:true });
-        toast("ok","تم الحفظ","الإعدادات السحابية تم تحديثها");
-      }catch(err){
-        console.error(err);
-        toast("err","فشل الحفظ", err?.code || "Save error");
-      }
-    }
-
-    $("btnSaveCloudSettings").addEventListener("click", saveCloudSettings);
-
-    // =========================
-    // 11) Theme + Settings modal
-    // =========================
-    const UI = window.UI = {
-      openLogin(){ $("modalLoginBack").classList.add("show"); },
-      closeLogin(){ $("modalLoginBack").classList.remove("show"); },
-      openSettings(){
-        $("modalSettingsBack").classList.add("show");
-        // sync UI
-        $("themeSelect").value = local.theme || document.body.getAttribute("data-theme") || "midnight";
-        $("density").value = local.density || "normal";
-      },
-      closeSettings(){ $("modalSettingsBack").classList.remove("show"); }
+    // Download HTML
+    window.downloadAppFile = ()=>{
+      const content = document.documentElement.outerHTML;
+      const blob = new Blob([content], { type:"text/html" });
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = "Clinic_Storage_System.html";
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
     };
 
-    $("btnAdmin").addEventListener("click", UI.openLogin);
-    $("btnSettings").addEventListener("click", UI.openSettings);
-
-    $("btnLogout").addEventListener("click", logout);
-
-    $("btnDoLogin").addEventListener("click", ()=>{
-      adminLogin($("adminEmail").value.trim(), $("adminPass").value);
-    });
-
-    $("btnTheme").addEventListener("click", ()=>{
-      UI.openSettings();
-      $("themeSelect").focus();
-    });
-
-    $("themeSelect").addEventListener("change", ()=>{
-      local.theme = $("themeSelect").value;
-      document.body.setAttribute("data-theme", local.theme);
-      saveLocalSettings();
-      toast("ok","تم تغيير الثيم", local.theme);
-    });
-
-    $("density").addEventListener("change", ()=>{
-      local.density = $("density").value;
-      saveLocalSettings();
-      toast("ok","تم", "تغيرت كثافة الجدول");
-    });
-
-    // Sidebar mobile
-    $("btnMobileMenu").addEventListener("click", ()=>{
-      $("sidebar").classList.toggle("hidden");
-    });
-
-    // Sidebar buttons
-    document.querySelectorAll("[data-view]").forEach(btn=>{
-      btn.addEventListener("click", ()=>{
-        const v = btn.getAttribute("data-view");
-        showView(v);
-        if(window.innerWidth < 768) $("sidebar").classList.add("hidden");
-      });
-    });
-
-    // =========================
-    // 12) Export + Download
-    // =========================
-    $("btnExport").addEventListener("click", exportToExcel);
-    $("btnDownload").addEventListener("click", downloadAppFile);
-
-    function exportToExcel(){
-      if(typeof XLSX === "undefined"){
-        return toast("err","XLSX","مكتبة الإكسل غير موجودة");
-      }
-      const th = Number(local.lowThreshold ?? 2);
-      const cur = local.currency ?? "د.ع";
-
-      const data = inventory.map(i=>{
+    // Export Excel
+    window.exportToExcel = ()=>{
+      if (typeof XLSX === "undefined") return alert("XLSX مو محمّلة");
+      const data = inventory.map((i)=>{
         const start = Number(i.start)||0;
         const bought = Number(i.bought)||0;
         const spent = Number(i.spent)||0;
         const cost = Number(i.cost)||0;
-        const remaining = (start+bought)-spent;
-        const status = remaining <= th ? "نقص" : "متوفر";
+        const remaining = (start + bought) - spent;
         return {
           "المادة": i.name || "",
           "الوصف": i.desc || "",
@@ -1014,37 +582,51 @@
           "مصروف": spent,
           "المتبقي": remaining,
           "سعر CC": cost,
-          "القيمة": remaining*cost,
-          "العملة": cur,
-          "الحالة": status
+          "القيمة الإجمالية": remaining * cost,
+          "الحالة": remaining<=2 ? "نقص" : "متوفر"
         };
       });
-
       const ws = XLSX.utils.json_to_sheet(data);
       const wb = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(wb, ws, "Inventory");
-      XLSX.writeFile(wb, `Clinic_Storage_${new Date().toISOString().split("T")[0]}.xlsx`);
-      toast("ok","تم التصدير","Excel جاهز ✅");
-    }
+      XLSX.writeFile(wb, `مخزن_د_ثائر_${new Date().toISOString().split("T")[0]}.xlsx`);
+    };
 
-    function downloadAppFile(){
-      const content = document.documentElement.outerHTML;
-      const blob = new Blob([content], { type: "text/html" });
-      const a = document.createElement("a");
-      a.href = URL.createObjectURL(blob);
-      a.download = "index.html";
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      toast("ok","تم","تم تحميل ملف index.html");
-    }
+    // ========= BOOT =========
+    __runAfterDom(async ()=>{
+      applyLocalSettings();
 
-    // =========================
-    // 13) Start
-    // =========================
-    setStatus("connecting","جاري الاتصال...");
-    setAdminUI();
-    await initGuestAuth();
+      setStatus("status-connecting", `<i class="fas fa-circle text-[8px]"></i> جاري الاتصال...`);
+
+      onAuthStateChanged(auth, async (user)=>{
+        // Admin: email/password
+        if (user && !user.isAnonymous){
+          setStatus("status-online", `<i class="fas fa-circle text-[8px]"></i> متصل سحابياً`);
+          $("userDisplay").innerText = `المعرف: ${user.uid.substring(0,8)}`;
+          setAdminUI(true, user.email || "");
+          startRealtime();
+          return;
+        }
+
+        // If signed out -> ensure anonymous for viewers
+        if (!user){
+          try {
+            await signInAnonymously(auth);
+            return;
+          } catch (e){
+            console.error(e);
+            setStatus("status-offline", "فشل الاتصال: " + (e?.code || e?.message || "Auth error"));
+            return;
+          }
+        }
+
+        // Anonymous viewer
+        setStatus("status-online", `<i class="fas fa-circle text-[8px]"></i> متصل سحابياً`);
+        $("userDisplay").innerText = `المعرف: ${user.uid.substring(0,8)}`;
+        setAdminUI(false);
+        startRealtime();
+      });
+    });
   </script>
 </body>
 </html>
