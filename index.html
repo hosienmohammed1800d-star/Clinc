@@ -474,12 +474,36 @@
       }
     }
 
-    onAuthStateChanged(auth, (user) => {
-      if(!user) return;
-      currentUser = user;
-      setStatusOnline(user.uid);
-      startRealtime();
-    });
+    onAuthStateChanged(auth, async (user) => {
+  if (!user) return;
+
+  currentUser = user;
+  setStatusOnline(user.uid);
+  startRealtime();
+
+  // ✅ إذا الحساب Email/Password نعرض UI أدمن
+  isAdminMode = (user.providerData || []).some(p => p.providerId === "password");
+  setRoleUI();
+
+  // ✅ اختبار صلاحية كتابة خفيف (إذا ما عنده صلاحية يرجع قراءة فقط)
+  if (isAdminMode) {
+    try {
+      const testDocRef = doc(db, "artifacts", APP_ID, "public", "data", "meta", "admin_test");
+      await updateDoc(testDocRef, { lastCheck: Date.now() }); // لازم يكون meta/admin_test موجود (أو راح يفشل not-found)
+      // إذا نجح يعني فعلاً أدمن حسب Rules
+      isAdminMode = true;
+      setRoleUI();
+    } catch (e) {
+      // إذا not-found نخليها ما تأثر، أما permission-denied نرجع قراءة فقط
+      if (e?.code === "permission-denied") {
+        isAdminMode = false;
+        setRoleUI();
+        alert("دخلت بحساب Admin بس الـ Rules ما تسمح (UID مو أدمن).");
+      }
+    }
+  }
+});
+
 
     // ========= 6) REALTIME =========
     function startRealtime(){
