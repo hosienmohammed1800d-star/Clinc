@@ -3,9 +3,9 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>مخزن سحابي</title>
+  <title>مخزن د. ثائر - سحابي</title>
 
-  <!-- UI libs -->
+  <!-- Tailwind (للتجربة/المشاريع الصغيرة OK) -->
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/js/all.min.js" crossorigin="anonymous"></script>
 
@@ -13,248 +13,312 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js" crossorigin="anonymous"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/Sortable/1.15.0/Sortable.min.js" crossorigin="anonymous"></script>
 
-  <!-- ✅ helper (prevents "$ before init" forever) -->
-  <script>
-    function $(id){ return document.getElementById(id); }
-    window.__runAfterDom = function(fn){
-      if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", fn, {once:true});
-      else fn();
-    };
-  </script>
-
   <style>
-    body { font-family: system-ui,-apple-system,"Segoe UI",Tahoma; margin:0; }
-    .glass { background: rgba(30, 41, 59, 0.65); backdrop-filter: blur(10px); border: 1px solid rgba(255,255,255,0.08); }
-    input, select, textarea {
-      background: rgba(15,23,42,0.6)!important;
-      border: 1px solid rgba(255,255,255,0.10)!important;
-      color: #fff!important;
+    :root{
+      --bg:#0f172a; --panel:rgba(30,41,59,.70); --panel2:rgba(30,41,59,.55);
+      --border:rgba(255,255,255,.10); --text:#e2e8f0; --muted:#94a3b8;
+      --accent:#3b82f6; --good:#10b981; --bad:#f87171; --warn:#fbbf24;
+      --input:rgba(15,23,42,.55);
     }
-    input:focus, select:focus, textarea:focus {
-      outline:none;
-      border-color: var(--accent, #3b82f6)!important;
-      background: rgba(30,41,59,0.9)!important;
+    body{ background:var(--bg); color:var(--text); margin:0; font-family: system-ui,-apple-system,"Segoe UI",Tahoma; }
+    .glass{ background:var(--panel); backdrop-filter: blur(10px); border:1px solid var(--border); }
+    .glass2{ background:var(--panel2); backdrop-filter: blur(10px); border:1px solid var(--border); }
+    input, select, textarea{
+      background: var(--input)!important;
+      border:1px solid var(--border)!important;
+      color:#fff!important;
+      outline:none!important;
     }
-    th { background:#1e293b!important; color:#94a3b8!important; white-space:nowrap; font-size:0.8rem; }
-    .handle { cursor: grab; color:#64748b; padding: 10px; }
-    .status-online { color:#10b981; }
-    .status-offline { color:#f87171; font-weight:700; }
-    .status-connecting { color:#fbbf24; }
-    .pill { border:1px solid rgba(255,255,255,0.10); background:rgba(255,255,255,0.04); }
+    input:focus, select:focus, textarea:focus{ border-color: var(--accent)!important; }
+    th{ background: rgba(15,23,42,.85)!important; color: var(--muted)!important; white-space:nowrap; font-size:.82rem; }
+    .handle{ cursor:grab; color: var(--muted); padding:10px; }
+    .status-online{ color: var(--good); }
+    .status-offline{ color: var(--bad); font-weight:700; }
+    .status-connecting{ color: var(--warn); }
+    .chip{ border:1px solid var(--border); background: rgba(2,6,23,.35); padding:.25rem .6rem; border-radius:999px; font-size:.8rem; }
+    .btn{ border-radius:.75rem; padding:.55rem .9rem; font-size:.9rem; font-weight:700; display:inline-flex; gap:.5rem; align-items:center; }
+    .btn-primary{ background: var(--accent); color:#fff; }
+    .btn-primary:hover{ filter: brightness(1.05); }
+    .btn-ghost{ background: rgba(148,163,184,.12); }
+    .btn-ghost:hover{ background: rgba(148,163,184,.18); }
+    .badge-ro{ background: rgba(248,113,113,.12); border: 1px solid rgba(248,113,113,.35); color: #fecaca; }
+    .badge-admin{ background: rgba(16,185,129,.12); border: 1px solid rgba(16,185,129,.35); color: #bbf7d0; }
+    .imgbox{ width:42px; height:42px; border-radius:12px; overflow:hidden; border:1px solid var(--border); background:rgba(2,6,23,.25); }
+    .imgbox img{ width:100%; height:100%; object-fit:cover; display:block; }
 
     /* Mobile */
     @media (max-width: 768px) {
       .table-container { font-size: 13px; }
-      input.table-input { width: 72px !important; padding: 4px !important; font-size: 12px; }
+      input.table-input { width: 64px !important; padding: 4px !important; font-size: 12px; }
       .name-input { width: 120px !important; }
       .desc-input { width: 140px !important; }
     }
 
+    /* Themes */
+    .theme-dark{
+      --bg:#0b1220; --panel:rgba(17,24,39,.78); --panel2:rgba(17,24,39,.58);
+      --border:rgba(255,255,255,.10); --text:#e5e7eb; --muted:#9ca3af;
+      --accent:#3b82f6; --input:rgba(2,6,23,.45);
+    }
+    .theme-slate{
+      --bg:#0f172a; --panel:rgba(30,41,59,.72); --panel2:rgba(30,41,59,.55);
+      --border:rgba(255,255,255,.10); --text:#e2e8f0; --muted:#94a3b8;
+      --accent:#06b6d4; --input:rgba(15,23,42,.55);
+    }
+    .theme-light{
+      --bg:#f8fafc; --panel:rgba(255,255,255,.78); --panel2:rgba(255,255,255,.65);
+      --border:rgba(2,6,23,.10); --text:#0f172a; --muted:#475569;
+      --accent:#2563eb; --input:rgba(241,245,249,.9);
+    }
+    .theme-emerald{
+      --bg:#071a14; --panel:rgba(7,26,20,.78); --panel2:rgba(7,26,20,.58);
+      --border:rgba(255,255,255,.12); --text:#e7fff6; --muted:#a7f3d0;
+      --accent:#10b981; --input:rgba(2,6,23,.35);
+    }
+    .theme-purple{
+      --bg:#140b2b; --panel:rgba(20,11,43,.78); --panel2:rgba(20,11,43,.58);
+      --border:rgba(255,255,255,.12); --text:#f3e8ff; --muted:#d8b4fe;
+      --accent:#a855f7; --input:rgba(2,6,23,.35);
+    }
+
     /* Modal */
-    .modal-backdrop{ position:fixed; inset:0; background: rgba(0,0,0,0.55); display:none; z-index:50; }
-    .modal{ max-width: 1100px; width: calc(100% - 24px); margin: 24px auto; border-radius: 16px; overflow:hidden; }
+    .modal-backdrop{ position:fixed; inset:0; background:rgba(0,0,0,.45); display:none; align-items:center; justify-content:center; padding:16px; z-index:50; }
+    .modal{ width:min(980px, 100%); max-height: 88vh; overflow:auto; border-radius: 18px; }
+    .modal-backdrop.show{ display:flex; }
   </style>
 </head>
 
-<body class="min-h-screen" style="background:#0f172a;color:#e2e8f0;">
+<body class="min-h-screen theme-slate" id="appRoot">
   <div class="max-w-7xl mx-auto p-4 md:p-6">
-
     <!-- Header -->
-    <header class="flex flex-col md:flex-row justify-between items-center mb-4 gap-4">
+    <header class="flex flex-col md:flex-row justify-between items-center mb-5 gap-4">
       <div class="flex items-center gap-4 w-full md:w-auto">
-        <div class="w-12 h-12 rounded-xl flex items-center justify-center shadow-lg" style="background:var(--accent,#3b82f6)">
+        <div class="w-12 h-12 rounded-xl flex items-center justify-center shadow-lg" style="background:var(--accent)">
           <i class="fas fa-cloud text-2xl text-white"></i>
         </div>
-        <div>
-          <h1 class="text-xl font-bold" id="appTitle">مخزن د. ثائر السحابي</h1>
-          <div class="flex items-center gap-2 text-xs">
+
+        <div class="min-w-[220px]">
+          <h1 class="text-xl font-extrabold" id="appTitleText">مخزن د. ثائر السحابي</h1>
+          <div class="flex items-center gap-2 text-xs mt-1">
             <span id="syncStatus" class="status-connecting">
               <i class="fas fa-circle text-[8px]"></i> جاري الاتصال...
             </span>
             <span class="text-slate-500">|</span>
             <span id="userDisplay" class="text-slate-400 italic">...</span>
+            <span id="roleBadge" class="chip badge-ro hidden">قراءة فقط</span>
+            <span id="adminBadge" class="chip badge-admin hidden">Admin</span>
           </div>
         </div>
       </div>
 
       <div class="flex gap-2 w-full md:w-auto overflow-x-auto pb-2 md:pb-0">
-        <button id="btnAdminLoginToggle" class="px-4 py-2 rounded-lg text-sm text-white shadow-lg" style="background:var(--accent,#3b82f6)">
-          <i class="fas fa-user-shield"></i> أدمن
+        <button id="btnSettings" class="btn btn-ghost whitespace-nowrap">
+          <i class="fas fa-gear"></i> الإعدادات
         </button>
 
-        <button id="btnSchema" class="px-4 py-2 rounded-lg text-sm text-white shadow-lg bg-slate-700 hover:bg-slate-600">
-          <i class="fas fa-table-columns"></i> بناء الجدول
+        <button onclick="exportToExcel()" class="btn btn-ghost whitespace-nowrap">
+          <i class="fas fa-file-excel"></i> تصدير Excel
         </button>
 
-        <button onclick="downloadAppFile()" class="text-white px-4 py-2 rounded-lg flex items-center gap-2 text-sm whitespace-nowrap shadow-lg transition-all active:scale-95" style="background:var(--accent,#3b82f6)">
-          <i class="fas fa-download"></i> <span id="btnDownloadTxt">تحميل HTML</span>
-        </button>
-
-        <button onclick="exportToExcel()" class="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 text-sm whitespace-nowrap shadow-lg">
-          <i class="fas fa-file-excel"></i> <span id="btnExportTxt">تصدير إكسل</span>
+        <button onclick="downloadAppFile()" class="btn btn-primary whitespace-nowrap">
+          <i class="fas fa-download"></i> تحميل HTML
         </button>
       </div>
     </header>
 
     <!-- Top Controls -->
-    <div class="glass rounded-xl p-4 mb-4">
-      <div class="grid grid-cols-1 md:grid-cols-4 gap-3 items-center">
-        <div class="md:col-span-2">
-          <div class="flex gap-2 items-center">
-            <i class="fas fa-magnifying-glass text-slate-300"></i>
-            <input id="searchBox" class="w-full p-2 rounded-lg text-sm" placeholder="بحث بالمادة/الوصف..." />
-          </div>
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-3 mb-5">
+      <div class="glass p-4 rounded-2xl flex items-center justify-between gap-3">
+        <div>
+          <div class="text-xs" style="color:var(--muted)">إجمالي القيمة المالية</div>
+          <div id="totalValue" class="text-lg font-extrabold" style="color:var(--accent)">0 د.ع</div>
+        </div>
+        <i class="fas fa-coins text-2xl" style="color:var(--muted)"></i>
+      </div>
+
+      <div class="glass p-4 rounded-2xl flex items-center justify-between gap-3">
+        <div>
+          <div class="text-xs" style="color:var(--muted)">عدد المواد</div>
+          <div id="totalItems" class="text-lg font-extrabold">0</div>
+        </div>
+        <i class="fas fa-layer-group text-2xl" style="color:var(--muted)"></i>
+      </div>
+
+      <div class="glass p-4 rounded-2xl flex items-center justify-between gap-3">
+        <div>
+          <div class="text-xs" style="color:var(--muted)">نواقص (≤ <span id="lowThresholdLabel">2</span>)</div>
+          <div id="lowStockCount" class="text-lg font-extrabold" style="color:var(--bad)">0</div>
+        </div>
+        <i class="fas fa-triangle-exclamation text-2xl" style="color:var(--muted)"></i>
+      </div>
+    </div>
+
+    <!-- Search / Sort -->
+    <div class="glass p-4 rounded-2xl mb-5 flex flex-col md:flex-row gap-3 md:items-center md:justify-between">
+      <div class="flex gap-2 items-center">
+        <i class="fas fa-magnifying-glass" style="color:var(--muted)"></i>
+        <input id="searchBox" class="w-full md:w-[360px] p-2 rounded-xl text-sm" placeholder="بحث بالمادة/الوصف..." />
+      </div>
+
+      <div class="flex flex-col md:flex-row gap-2 md:items-center">
+        <select id="sortBy" class="p-2 rounded-xl text-sm">
+          <option value="order">الافتراضي</option>
+          <option value="name">اسم المادة</option>
+          <option value="remaining">المتبقي</option>
+          <option value="value">القيمة الإجمالية</option>
+          <option value="lowFirst">النواقص أولاً</option>
+        </select>
+
+        <select id="sortDir" class="p-2 rounded-xl text-sm">
+          <option value="asc">تصاعدي</option>
+          <option value="desc">تنازلي</option>
+        </select>
+
+        <button id="btnResetSort" class="btn btn-ghost">
+          <i class="fas fa-rotate-left"></i> إعادة
+        </button>
+      </div>
+    </div>
+
+    <!-- Add (admin only) -->
+    <div class="glass p-4 rounded-2xl mb-5" id="addCard">
+      <div class="flex items-center justify-between gap-2 mb-3">
+        <div class="font-extrabold">إضافة مادة</div>
+        <div class="text-xs" style="color:var(--muted)">الإضافة متاحة للأدمن فقط</div>
+      </div>
+
+      <form id="addForm" class="grid grid-cols-2 md:grid-cols-6 gap-3">
+        <div class="col-span-2 md:col-span-2">
+          <input type="text" id="name" class="w-full p-2 rounded-xl text-sm" placeholder="المادة..." required />
+        </div>
+
+        <div class="col-span-2 md:col-span-2">
+          <input type="text" id="desc" class="w-full p-2 rounded-xl text-sm" placeholder="الوصف..." />
         </div>
 
         <div>
-          <select id="sortCol" class="w-full p-2 rounded-lg text-sm"></select>
+          <input type="text" id="img" class="w-full p-2 rounded-xl text-sm" placeholder="رابط صورة (اختياري)" />
         </div>
 
-        <div class="flex gap-2">
-          <button id="sortDirBtn" class="w-full px-4 py-2 rounded-lg text-sm text-white bg-slate-700 hover:bg-slate-600">
-            <i class="fas fa-arrow-down-wide-short"></i> تنازلي
-          </button>
-          <button id="lowOnlyBtn" class="w-full px-4 py-2 rounded-lg text-sm text-white bg-slate-700 hover:bg-slate-600">
-            <i class="fas fa-triangle-exclamation"></i> النواقص
-          </button>
-        </div>
-      </div>
-
-      <div class="mt-3 flex flex-wrap gap-2 items-center justify-between">
-        <div class="text-xs text-slate-300">
-          <span class="pill px-2 py-1 rounded-lg">قراءة للجميع</span>
-          <span class="pill px-2 py-1 rounded-lg">التعديل للأدمن فقط</span>
-          <span class="pill px-2 py-1 rounded-lg">الصور: Image URL</span>
+        <div>
+          <input type="number" id="start" class="w-full p-2 rounded-xl text-sm" placeholder="البداية" step="any" />
         </div>
 
-        <div class="flex gap-2 items-center text-xs">
-          <span class="text-slate-400">عتبة النقص:</span>
-          <input id="lowThreshold" type="number" class="w-24 p-2 rounded-lg text-sm text-center" value="2" />
-          <button id="saveSettingsBtn" class="px-4 py-2 rounded-lg text-sm font-bold bg-slate-100 hover:bg-white text-slate-900">
-            حفظ
-          </button>
-          <span id="adminState" class="text-slate-300">زائر</span>
+        <div>
+          <input type="number" id="cost" class="w-full p-2 rounded-xl text-sm" placeholder="سعر CC" step="any" />
         </div>
-      </div>
 
-      <!-- Admin login box -->
-      <div id="adminBox" class="mt-3 hidden grid grid-cols-1 md:grid-cols-3 gap-3">
-        <input id="adminEmail" class="p-2 rounded-lg text-sm" placeholder="Admin Email" />
-        <input id="adminPass" type="password" class="p-2 rounded-lg text-sm" placeholder="Admin Password" />
-        <div class="flex gap-2">
-          <button id="doAdminLogin" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-lg text-sm font-bold">
-            دخول
-          </button>
-          <button id="doAdminLogout" class="w-full bg-slate-700 hover:bg-slate-600 text-white px-4 py-2 rounded-lg text-sm font-bold hidden">
-            خروج
+        <div class="col-span-2 md:col-span-6">
+          <button type="submit" class="btn btn-primary w-full justify-center">
+            إضافة <i class="fas fa-plus"></i>
           </button>
         </div>
-        <div class="md:col-span-3 text-xs text-slate-400">
-          ملاحظة: كلمة المرور ما تنخزن بالمتصفح. تسجيل دخول Firebase فقط.
-        </div>
-      </div>
-    </div>
-
-    <!-- Stats -->
-    <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
-      <div class="glass p-4 rounded-xl">
-        <p class="text-slate-400 text-[10px] md:text-xs mb-1">إجمالي القيمة المالية</p>
-        <h3 id="totalValue" class="text-sm md:text-lg font-bold text-blue-400">0</h3>
-      </div>
-      <div class="glass p-4 rounded-xl">
-        <p class="text-slate-400 text-[10px] md:text-xs mb-1">عدد المواد</p>
-        <h3 id="totalItems" class="text-sm md:text-lg font-bold">0</h3>
-      </div>
-      <div class="glass p-4 rounded-xl border-r-4 border-red-500">
-        <p class="text-slate-400 text-[10px] md:text-xs mb-1">نواقص</p>
-        <h3 id="lowStockCount" class="text-sm md:text-lg font-bold text-red-400">0</h3>
-      </div>
-      <div class="glass p-4 rounded-xl border-r-4 border-emerald-500">
-        <p class="text-slate-400 text-[10px] md:text-xs mb-1">إجمالي المصروف</p>
-        <h3 id="totalSpent" class="text-sm md:text-lg font-bold text-emerald-400">0</h3>
-      </div>
-    </div>
-
-    <!-- Add Form (dynamic) -->
-    <div class="glass p-4 rounded-xl mb-4">
-      <div class="flex items-center justify-between mb-2">
-        <div class="font-bold flex items-center gap-2">
-          <i class="fas fa-plus"></i>
-          <span>إضافة مادة</span>
-        </div>
-        <div class="text-xs text-slate-400" id="addHint">حقول الإضافة تتحدد من “بناء الجدول”.</div>
-      </div>
-
-      <form id="addForm" class="grid grid-cols-2 md:grid-cols-6 gap-3"></form>
+      </form>
     </div>
 
     <!-- Table -->
-    <div class="glass rounded-xl overflow-hidden shadow-2xl">
+    <div class="glass rounded-2xl overflow-hidden shadow-2xl">
       <div class="overflow-x-auto table-container">
         <table class="w-full text-right border-collapse">
           <thead>
-            <tr class="border-b border-slate-700" id="theadRow"></tr>
+            <tr class="border-b border-slate-700">
+              <th class="p-3 text-center w-8">#</th>
+              <th class="p-3 text-center">صورة</th>
+              <th class="p-3" id="colLabel_name">المادة</th>
+              <th class="p-3" id="colLabel_desc">الوصف</th>
+              <th class="p-3 text-center" id="colLabel_start">البداية</th>
+              <th class="p-3 text-center" id="colLabel_bought">مشتريات</th>
+              <th class="p-3 text-center" id="colLabel_spent">مصروف</th>
+              <th class="p-3 text-center" id="colLabel_remaining">المتبقي</th>
+              <th class="p-3 text-center" id="colLabel_cost">سعر CC</th>
+              <th class="p-3 text-center" id="colLabel_value">القيمة الإجمالية</th>
+              <th class="p-3 text-center" id="colLabel_status">الحالة</th>
+              <th class="p-3 text-center">حذف</th>
+            </tr>
           </thead>
           <tbody id="tableBody"></tbody>
         </table>
       </div>
     </div>
+
+    <div class="mt-4 text-xs" style="color:var(--muted)">
+      💡 الزوار يقدرون يقرون فقط. التعديل/الإضافة تحتاج تسجيل دخول Admin.
+    </div>
   </div>
 
-  <!-- Schema Builder Modal -->
-  <div id="schemaModal" class="modal-backdrop">
-    <div class="modal glass">
-      <div class="p-4 border-b border-slate-700 flex items-center justify-between">
-        <div class="font-bold flex items-center gap-2">
-          <i class="fas fa-table-columns"></i>
-          <span>بناء الجدول (Dynamic Columns)</span>
-        </div>
-        <div class="flex gap-2">
-          <button id="addColBtn" class="px-4 py-2 rounded-lg text-sm font-bold bg-slate-100 hover:bg-white text-slate-900">
-            + عمود
-          </button>
-          <button id="closeSchemaBtn" class="px-4 py-2 rounded-lg text-sm text-white bg-slate-700 hover:bg-slate-600">
-            إغلاق
-          </button>
-        </div>
+  <!-- Settings Modal -->
+  <div id="settingsBackdrop" class="modal-backdrop">
+    <div class="modal glass p-5">
+      <div class="flex items-center justify-between gap-2 mb-4">
+        <div class="text-lg font-extrabold">الإعدادات</div>
+        <button id="btnCloseSettings" class="btn btn-ghost"><i class="fas fa-xmark"></i></button>
       </div>
 
-      <div class="p-4">
-        <div class="text-xs text-slate-400 mb-3">
-          اسحب العمود لتغيير الترتيب. تقدر تغيّر الاسم/النوع/إظهار بالجدول/إظهار بالإضافة/إظهار بالتصدير.
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <!-- Admin login -->
+        <div class="glass2 p-4 rounded-2xl">
+          <div class="font-extrabold mb-2">تسجيل دخول Admin</div>
+          <div class="text-xs mb-3" style="color:var(--muted)">Email/Password فقط. UID الأدمن لازم يكون ضمن Rules.</div>
+
+          <div class="grid grid-cols-1 gap-2">
+            <input id="adminEmail" type="email" class="p-2 rounded-xl text-sm" placeholder="Email الأدمن" />
+            <input id="adminPass" type="password" class="p-2 rounded-xl text-sm" placeholder="Password" />
+            <div class="flex gap-2">
+              <button id="adminLoginBtn" class="btn btn-primary flex-1 justify-center"><i class="fas fa-right-to-bracket"></i> دخول</button>
+              <button id="adminLogoutBtn" class="btn btn-ghost flex-1 justify-center"><i class="fas fa-right-from-bracket"></i> خروج</button>
+            </div>
+            <div id="adminState" class="text-sm"></div>
+          </div>
         </div>
 
-        <div class="overflow-x-auto">
-          <table class="w-full border-collapse">
-            <thead>
-              <tr class="border-b border-slate-700">
-                <th class="p-2 text-center w-10">#</th>
-                <th class="p-2">الاسم</th>
-                <th class="p-2">المعرّف</th>
-                <th class="p-2">النوع</th>
-                <th class="p-2 text-center">الجدول</th>
-                <th class="p-2 text-center">الإضافة</th>
-                <th class="p-2 text-center">التصدير</th>
-                <th class="p-2 text-center">عرض</th>
-                <th class="p-2 text-center">لون</th>
-                <th class="p-2 text-center">حذف</th>
-              </tr>
-            </thead>
-            <tbody id="schemaBody"></tbody>
-          </table>
+        <!-- UI Settings (local) -->
+        <div class="glass2 p-4 rounded-2xl">
+          <div class="font-extrabold mb-2">إعدادات الواجهة (محلية للجهاز)</div>
+          <div class="grid grid-cols-1 gap-2">
+            <label class="text-sm" style="color:var(--muted)">الثيم</label>
+            <select id="themeSelect" class="p-2 rounded-xl text-sm">
+              <option value="theme-slate">Slate</option>
+              <option value="theme-dark">Dark</option>
+              <option value="theme-light">Light</option>
+              <option value="theme-emerald">Emerald</option>
+              <option value="theme-purple">Purple</option>
+            </select>
+
+            <label class="text-sm mt-2" style="color:var(--muted)">عنوان التطبيق</label>
+            <input id="titleInput" class="p-2 rounded-xl text-sm" placeholder="مثلاً: مخزن العيادة" />
+
+            <label class="text-sm mt-2" style="color:var(--muted)">عتبة النقص (الحالة = نقص إذا المتبقي ≤ هذا الرقم)</label>
+            <input id="lowThresholdInput" type="number" step="1" class="p-2 rounded-xl text-sm" />
+
+            <div class="flex gap-2 mt-2">
+              <button id="saveLocalSettingsBtn" class="btn btn-primary flex-1 justify-center"><i class="fas fa-floppy-disk"></i> حفظ</button>
+              <button id="resetLocalSettingsBtn" class="btn btn-ghost flex-1 justify-center"><i class="fas fa-rotate-left"></i> تصفير</button>
+            </div>
+          </div>
         </div>
 
-        <div class="mt-4 flex flex-col md:flex-row gap-2 justify-between items-start md:items-center">
-          <div class="text-xs text-slate-400">
-            الأعمدة المحسوبة: <span class="pill px-2 py-1 rounded-lg">المتبقي</span>
-            <span class="pill px-2 py-1 rounded-lg">القيمة الإجمالية</span>
-            <span class="pill px-2 py-1 rounded-lg">الحالة</span>
+        <!-- Column Labels -->
+        <div class="glass2 p-4 rounded-2xl md:col-span-2">
+          <div class="font-extrabold mb-2">تغيير أسماء الأعمدة (Labels)</div>
+          <div class="text-xs mb-3" style="color:var(--muted)">
+            هاي الإعدادات محلية للجهاز. (إذا تريدها “سحابية” للأدمن فقط نضيفها لاحقاً.)
           </div>
 
-          <div class="flex gap-2">
-            <button id="saveSchemaBtn" class="px-6 py-2 rounded-lg text-sm font-bold bg-emerald-600 hover:bg-emerald-700 text-white">
-              حفظ البناء
-            </button>
+          <div class="grid grid-cols-2 md:grid-cols-4 gap-2">
+            <input id="lbl_name" class="p-2 rounded-xl text-sm" placeholder="المادة" />
+            <input id="lbl_desc" class="p-2 rounded-xl text-sm" placeholder="الوصف" />
+            <input id="lbl_start" class="p-2 rounded-xl text-sm" placeholder="البداية" />
+            <input id="lbl_bought" class="p-2 rounded-xl text-sm" placeholder="مشتريات" />
+            <input id="lbl_spent" class="p-2 rounded-xl text-sm" placeholder="مصروف" />
+            <input id="lbl_remaining" class="p-2 rounded-xl text-sm" placeholder="المتبقي" />
+            <input id="lbl_cost" class="p-2 rounded-xl text-sm" placeholder="سعر CC" />
+            <input id="lbl_value" class="p-2 rounded-xl text-sm" placeholder="القيمة الإجمالية" />
+            <input id="lbl_status" class="p-2 rounded-xl text-sm" placeholder="الحالة" />
+          </div>
+
+          <div class="flex gap-2 mt-3">
+            <button id="saveLabelsBtn" class="btn btn-primary flex-1 justify-center"><i class="fas fa-tag"></i> حفظ الأسماء</button>
+            <button id="resetLabelsBtn" class="btn btn-ghost flex-1 justify-center"><i class="fas fa-rotate-left"></i> افتراضي</button>
           </div>
         </div>
       </div>
@@ -265,28 +329,15 @@
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-app.js";
     import {
-      getAuth,
-      onAuthStateChanged,
-      signInAnonymously,
-      signInWithEmailAndPassword,
-      signOut
+      getAuth, signInAnonymously, onAuthStateChanged,
+      signInWithEmailAndPassword, signOut
     } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-auth.js";
     import {
-      getFirestore,
-      collection,
-      addDoc,
-      updateDoc,
-      deleteDoc,
-      doc,
-      onSnapshot,
-      query,
-      writeBatch,
-      serverTimestamp,
-      getDoc,
-      setDoc
+      getFirestore, collection, addDoc, updateDoc, deleteDoc,
+      doc, onSnapshot, query, writeBatch
     } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-firestore.js";
 
-    // ✅ Firebase config (YOUR PROJECT)
+    // ========= 1) CONFIG =========
     const firebaseConfig = {
       apiKey: "AIzaSyC_KaWOZVWJ5WvVhUjiz58dx6d6sWH1EZQ",
       authDomain: "clinic-storage.firebaseapp.com",
@@ -296,843 +347,464 @@
       appId: "1:284636281654:web:aa19cd577c4efda5d21197"
     };
 
-    // ✅ Shared appId
-    const appId = "clinic-storage";
+    const APP_ID = "clinic-storage"; // ثابت حتى يتزامن بين كل الأجهزة
 
-    // ========= Theme + Text =========
-    const THEMES = {
-      midnight: { bg:"#0f172a", text:"#e2e8f0", accent:"#3b82f6", card:"rgba(30,41,59,0.65)" },
-      slate:    { bg:"#0b1220", text:"#e2e8f0", accent:"#22c55e", card:"rgba(15,23,42,0.70)" },
-      ivory:    { bg:"#f8fafc", text:"#0f172a", accent:"#2563eb", card:"rgba(255,255,255,0.82)" },
-      ocean:    { bg:"#071a2b", text:"#e2e8f0", accent:"#38bdf8", card:"rgba(56,189,248,0.10)" },
-      berry:    { bg:"#160b1f", text:"#e2e8f0", accent:"#a78bfa", card:"rgba(167,139,250,0.10)" },
-    };
+    // ========= 2) HELPERS =========
+    const $ = (id) => document.getElementById(id);
+    const esc = (v) => String(v ?? "").replace(/"/g, "&quot;");
+    const LS_KEY = "clinic_storage_settings_v1";
+    const LS_LABELS = "clinic_storage_labels_v1";
 
-    const LOCAL_UI_KEY = "clinic_dynamic_ui_v1";
-    const DEFAULT_UI = {
-      theme: "midnight",
-      texts: {
-        title: "مخزن د. ثائر السحابي",
-        download: "تحميل HTML",
-        export: "تصدير إكسل",
-        statusOk: "متوفر",
-        statusLow: "نقص",
-        currency: "د.ع"
-      }
-    };
-
-    function getUi(){
-      try { return JSON.parse(localStorage.getItem(LOCAL_UI_KEY) || "null") || structuredClone(DEFAULT_UI); }
-      catch { return structuredClone(DEFAULT_UI); }
-    }
-    function saveUi(u){ localStorage.setItem(LOCAL_UI_KEY, JSON.stringify(u)); }
-
-    function applyUi(){
-      const u = getUi();
-      const t = THEMES[u.theme] || THEMES.midnight;
-      document.body.style.background = t.bg;
-      document.body.style.color = t.text;
-      document.documentElement.style.setProperty("--accent", t.accent);
-      document.querySelectorAll(".glass").forEach(el => el.style.background = t.card);
-
-      $("appTitle").textContent = u.texts.title;
-      $("btnDownloadTxt").textContent = u.texts.download;
-      $("btnExportTxt").textContent = u.texts.export;
+    function invCol(db){
+      return collection(db, "artifacts", APP_ID, "public", "data", "inventory");
     }
 
-    // ========= Schema + Settings =========
-    // types: text, number, image, computed
-    // computed keys: remaining, totalValue, status
-    const DEFAULT_SCHEMA = {
-      version: 1,
-      columns: [
-        { id:"__drag", label:"#", type:"drag", visible:true, inAdd:false, export:false, width: 50 },
+    function setStatusOnline(uid){
+      $("syncStatus").innerHTML = '<i class="fas fa-circle text-[8px]"></i> متصل سحابياً';
+      $("syncStatus").className = "status-online";
+      $("userDisplay").innerText = `المعرف: ${uid.substring(0,8)}`;
+    }
 
-        { id:"name", label:"المادة", type:"text", visible:true, inAdd:true, export:true, width: 180, required:true },
-        { id:"desc", label:"الوصف", type:"text", visible:true, inAdd:true, export:true, width: 220 },
+    function setStatusOffline(msg){
+      $("syncStatus").textContent = `فشل الاتصال${msg ? ": " + msg : ""}`;
+      $("syncStatus").className = "status-offline";
+    }
 
-        { id:"start", label:"البداية", type:"number", visible:true, inAdd:true, export:true, width: 110, color:"emerald" },
-        { id:"bought", label:"مشتريات", type:"number", visible:true, inAdd:false, export:true, width: 110, color:"sky" },
-        { id:"spent", label:"مصروف", type:"number", visible:true, inAdd:false, export:true, width: 110, color:"orange" },
-
-        { id:"image", label:"صورة", type:"image", visible:false, inAdd:false, export:true, width: 120 },
-
-        { id:"remaining", label:"المتبقي", type:"computed", key:"remaining", visible:true, inAdd:false, export:true, width: 110 },
-        { id:"cost", label:"سعر CC", type:"number", visible:true, inAdd:true, export:true, width: 110 },
-
-        { id:"totalValue", label:"القيمة الإجمالية", type:"computed", key:"totalValue", visible:true, inAdd:false, export:true, width: 140 },
-        { id:"status", label:"الحالة", type:"computed", key:"status", visible:true, inAdd:false, export:true, width: 90 },
-        { id:"__delete", label:"حذف", type:"delete", visible:true, inAdd:false, export:false, width: 60 }
-      ]
+    // ========= 3) LOCAL SETTINGS =========
+    const defaultLocalSettings = {
+      theme: "theme-slate",
+      title: "مخزن د. ثائر السحابي",
+      lowThreshold: 2
     };
 
-    const DEFAULT_SETTINGS = {
-      lowThreshold: 2,
-      defaultSort: "name",
-      defaultSortDir: "desc",
-      showLowOnly: false
+    const defaultLabels = {
+      name:"المادة", desc:"الوصف", start:"البداية", bought:"مشتريات", spent:"مصروف",
+      remaining:"المتبقي", cost:"سعر CC", value:"القيمة الإجمالية", status:"الحالة"
     };
 
-    // ========= Firebase =========
+    function loadLocalSettings(){
+      try{
+        const s = JSON.parse(localStorage.getItem(LS_KEY) || "null");
+        return { ...defaultLocalSettings, ...(s||{}) };
+      }catch{ return { ...defaultLocalSettings }; }
+    }
+
+    function saveLocalSettings(s){
+      localStorage.setItem(LS_KEY, JSON.stringify(s));
+    }
+
+    function loadLabels(){
+      try{
+        const s = JSON.parse(localStorage.getItem(LS_LABELS) || "null");
+        return { ...defaultLabels, ...(s||{}) };
+      }catch{ return { ...defaultLabels }; }
+    }
+
+    function saveLabels(s){
+      localStorage.setItem(LS_LABELS, JSON.stringify(s));
+    }
+
+    function applyLocalSettings(){
+      const s = loadLocalSettings();
+      const root = $("appRoot");
+      root.classList.remove("theme-slate","theme-dark","theme-light","theme-emerald","theme-purple");
+      root.classList.add(s.theme);
+      $("appTitleText").innerText = s.title;
+      $("lowThresholdLabel").innerText = String(s.lowThreshold ?? 2);
+
+      // Modal fields
+      $("themeSelect").value = s.theme;
+      $("titleInput").value = s.title;
+      $("lowThresholdInput").value = String(s.lowThreshold ?? 2);
+    }
+
+    function applyLabels(){
+      const l = loadLabels();
+      $("colLabel_name").innerText = l.name;
+      $("colLabel_desc").innerText = l.desc;
+      $("colLabel_start").innerText = l.start;
+      $("colLabel_bought").innerText = l.bought;
+      $("colLabel_spent").innerText = l.spent;
+      $("colLabel_remaining").innerText = l.remaining;
+      $("colLabel_cost").innerText = l.cost;
+      $("colLabel_value").innerText = l.value;
+      $("colLabel_status").innerText = l.status;
+
+      $("lbl_name").value = l.name;
+      $("lbl_desc").value = l.desc;
+      $("lbl_start").value = l.start;
+      $("lbl_bought").value = l.bought;
+      $("lbl_spent").value = l.spent;
+      $("lbl_remaining").value = l.remaining;
+      $("lbl_cost").value = l.cost;
+      $("lbl_value").value = l.value;
+      $("lbl_status").value = l.status;
+    }
+
+    applyLocalSettings();
+    applyLabels();
+
+    // ========= 4) APP STATE =========
     const app = initializeApp(firebaseConfig);
     const auth = getAuth(app);
     const db = getFirestore(app);
 
-    // Paths:
-    // inventory: artifacts/{appId}/public/data/inventory (collection)
-    // meta schema: artifacts/{appId}/public/data/meta/schema (doc)
-    // meta settings: artifacts/{appId}/public/data/meta/settings (doc)
-    const invCol = () => collection(db, "artifacts", appId, "public", "data", "inventory");
-    const schemaRef = () => doc(db, "artifacts", appId, "public", "data", "meta", "schema");
-    const settingsRef = () => doc(db, "artifacts", appId, "public", "data", "meta", "settings");
-
-    let isAdmin = false;
     let currentUser = null;
+    let isAdminMode = false;   // فعلياً الأدمن حسب نجاح الكتابة
     let inventory = [];
+    let sortableInited = false;
 
-    let schema = structuredClone(DEFAULT_SCHEMA);
-    let settings = structuredClone(DEFAULT_SETTINGS);
+    let viewSearch = "";
+    let viewSortBy = "order";
+    let viewSortDir = "asc";
 
-    let sortableRowsInited = false;
-    let sortableSchemaInited = false;
-
-    let searchTerm = "";
-    let sortColId = DEFAULT_SETTINGS.defaultSort;
-    let sortDir = DEFAULT_SETTINGS.defaultSortDir; // "asc" | "desc"
-    let showLowOnly = DEFAULT_SETTINGS.showLowOnly;
-
-    const esc = (v) => String(v ?? "").replace(/"/g, "&quot;");
-
-    function setStatus(cls, htmlOrText){
-      const s = $("syncStatus");
-      s.className = cls;
-      if ((htmlOrText || "").includes("<")) s.innerHTML = htmlOrText;
-      else s.textContent = htmlOrText;
+    function setRoleUI(){
+      $("roleBadge").classList.toggle("hidden", isAdminMode);
+      $("adminBadge").classList.toggle("hidden", !isAdminMode);
+      $("addCard").style.display = isAdminMode ? "block" : "none";
     }
 
-    function setAdminUI(state){
-      isAdmin = state;
-      $("adminState").textContent = state ? "أدمن" : "زائر";
-      $("doAdminLogout").classList.toggle("hidden", !state);
-
-      // Admin-only controls:
-      $("btnSchema").disabled = !state;
-      $("btnSchema").style.opacity = state ? "1" : "0.6";
-
-      // Add form inputs + submit
-      document.querySelectorAll("#addForm input, #addForm button").forEach(el=>{
-        el.disabled = !state;
-        el.style.opacity = state ? "1" : "0.75";
-      });
-
-      // Table inputs + delete
-      document.querySelectorAll("#tableBody input, #tableBody textarea, #tableBody button").forEach(el=>{
-        el.disabled = !state;
-        el.style.opacity = state ? "1" : "0.6";
-        if (el.tagName === "BUTTON") el.style.pointerEvents = state ? "auto" : "none";
-      });
-    }
-
-    // ======= Computed helpers =======
-    function getVal(item, colId){
-      const v = (item.values && Object.prototype.hasOwnProperty.call(item.values, colId)) ? item.values[colId] : undefined;
-      if (v !== undefined) return v;
-
-      // legacy fallback
-      if (Object.prototype.hasOwnProperty.call(item, colId)) return item[colId];
-      return undefined;
-    }
-
-    function num(x){ return Number(x) || 0; }
-
-    function compute(item, col){
-      const u = getUi();
-      const threshold = Number(settings.lowThreshold) || 2;
-      const start = num(getVal(item, "start"));
-      const bought = num(getVal(item, "bought"));
-      const spent = num(getVal(item, "spent"));
-      const cost = num(getVal(item, "cost"));
-      const remaining = (start + bought) - spent;
-
-      if (col.key === "remaining") return remaining;
-      if (col.key === "totalValue") return remaining * cost;
-      if (col.key === "status") return (remaining <= threshold) ? (u.texts.statusLow || "نقص") : (u.texts.statusOk || "متوفر");
-      return "";
-    }
-
-    function isLow(item){
-      const threshold = Number(settings.lowThreshold) || 2;
-      const remaining = num(compute(item, {key:"remaining"}));
-      return remaining <= threshold;
-    }
-
-    // ======= Render: header + add form + table =======
-    function visibleCols(){
-      // Hide special columns if not needed
-      return (schema.columns || []).filter(c => c.visible !== false);
-    }
-
-    function dataColsForAdd(){
-      return (schema.columns || []).filter(c => c.inAdd && !["drag","delete","computed"].includes(c.type) && !c.id.startsWith("__"));
-    }
-
-    function exportCols(){
-      return (schema.columns || []).filter(c => c.export && c.type !== "drag" && c.type !== "delete");
-    }
-
-    function rebuildSortSelect(){
-      const sel = $("sortCol");
-      sel.innerHTML = "";
-      const cols = (schema.columns || []).filter(c => !c.id.startsWith("__") || c.type === "computed");
-      cols.forEach(c=>{
-        const opt = document.createElement("option");
-        opt.value = c.id;
-        opt.textContent = `فرز حسب: ${c.label || c.id}`;
-        sel.appendChild(opt);
-      });
-      // keep selection if possible
-      sel.value = sortColId || settings.defaultSort || "name";
-      if (!sel.value) sel.value = "name";
-    }
-
-    function renderAddForm(){
-      const form = $("addForm");
-      form.innerHTML = "";
-
-      const cols = dataColsForAdd();
-      if (!cols.length){
-        $("addHint").textContent = "حدد حقول الإضافة من “بناء الجدول”.";
-        return;
+    // ========= 5) AUTH =========
+    async function initAnonymous(){
+      try{
+        await signInAnonymously(auth);
+      }catch(e){
+        console.error(e);
+        setStatusOffline(e?.code || e?.message || "Auth error");
       }
-      $("addHint").textContent = isAdmin ? "أدخل البيانات واضغط إضافة." : "التعديل للأدمن فقط.";
+    }
 
-      cols.forEach(c=>{
-        const wrap = document.createElement("div");
-        wrap.className = "col-span-2 md:col-span-2";
+    onAuthStateChanged(auth, (user) => {
+      if(!user) return;
+      currentUser = user;
+      setStatusOnline(user.uid);
+      startRealtime();
+    });
 
-        if (c.type === "number") wrap.className = "col-span-1";
-        if (c.id === "name") wrap.className = "col-span-2 md:col-span-2";
-        if (c.id === "desc") wrap.className = "col-span-2 md:col-span-3";
+    // ========= 6) REALTIME =========
+    function startRealtime(){
+      const q = query(invCol(db));
+      onSnapshot(q, (snap) => {
+        inventory = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+        renderTable();
+      }, (err) => {
+        console.error(err);
+        setStatusOffline(err?.code || err?.message || "Firestore error");
+      });
+    }
 
-        const input = document.createElement("input");
-        input.id = "add_" + c.id;
-        input.className = "w-full p-2 rounded-lg text-sm";
-        input.placeholder = c.label || c.id;
-        input.disabled = !isAdmin;
+    // ========= 7) ADMIN WRITE CHECK (اختبار سريع) =========
+    async function probeAdminWrite(){
+      // نحاول نكتب update بسيط على Doc وهمي؟ الأفضل ما نسوي.
+      // بدلها: نخلي isAdminMode false افتراضياً، وإذا أي عملية كتابة نجحت نخليها true.
+      // وإذا فشلت permission-denied نخليها false.
+    }
 
-        if (c.type === "number"){
-          input.type = "number";
-          input.step = "any";
-        } else {
-          input.type = "text";
+    // ========= 8) CRUD =========
+    window.updateField = async (id, field, value) => {
+      if(!currentUser) return;
+      const isText = ["name","desc","img"].includes(field);
+      const val = isText ? (value ?? "") : (parseFloat(value) || 0);
+
+      try{
+        await updateDoc(doc(db, "artifacts", APP_ID, "public", "data", "inventory", id), { [field]: val });
+        isAdminMode = true;
+        setRoleUI();
+      }catch(e){
+        console.error(e);
+        if(e?.code === "permission-denied"){
+          isAdminMode = false;
+          setRoleUI();
+          alert("❌ ما عندك صلاحية تعديل. سجّل دخول Admin.");
+          return;
         }
-        if (c.required) input.required = true;
+        alert("صار خطأ بالتحديث. افتح Console وشوف السبب.");
+      }
+    };
 
-        wrap.appendChild(input);
-        form.appendChild(wrap);
-      });
+    window.deleteItem = async (id) => {
+      if(!confirm("حذف نهائي؟")) return;
+      try{
+        await deleteDoc(doc(db, "artifacts", APP_ID, "public", "data", "inventory", id));
+        isAdminMode = true;
+        setRoleUI();
+      }catch(e){
+        console.error(e);
+        if(e?.code === "permission-denied"){
+          isAdminMode = false; setRoleUI();
+          alert("❌ ما عندك صلاحية حذف. سجّل دخول Admin.");
+          return;
+        }
+        alert("صار خطأ بالحذف.");
+      }
+    };
 
-      // submit
-      const btnWrap = document.createElement("div");
-      btnWrap.className = "col-span-2 md:col-span-6";
-      btnWrap.innerHTML = `
-        <button ${isAdmin ? "" : "disabled"} type="submit"
-          class="w-full bg-slate-100 hover:bg-white text-slate-900 py-2 rounded-lg font-bold text-sm shadow-lg active:scale-95 transition-all">
-          إضافة مادة <i class="fas fa-plus mr-1"></i>
-        </button>
-      `;
-      form.appendChild(btnWrap);
+    $("addForm").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const name = ($("name").value || "").trim();
+      if(!name){ return; }
+
+      const data = {
+        name,
+        desc: ($("desc").value || "").trim(),
+        img: ($("img").value || "").trim(),
+        start: parseFloat($("start").value) || 0,
+        bought: 0,
+        spent: 0,
+        cost: parseFloat($("cost").value) || 0,
+        order: inventory.length,
+        createdAt: Date.now()
+      };
+
+      try{
+        await addDoc(invCol(db), data);
+        isAdminMode = true; setRoleUI();
+        e.target.reset();
+      }catch(err){
+        console.error(err);
+        if(err?.code === "permission-denied"){
+          isAdminMode = false; setRoleUI();
+          alert("❌ ما عندك صلاحية إضافة. سجّل دخول Admin.");
+          return;
+        }
+        alert("صار خطأ بالإضافة.");
+      }
+    });
+
+    // ========= 9) VIEW (Search/Sort) =========
+    $("searchBox").addEventListener("input", (e) => {
+      viewSearch = (e.target.value || "").trim().toLowerCase();
+      renderTable();
+    });
+
+    $("sortBy").addEventListener("change", (e) => {
+      viewSortBy = e.target.value;
+      renderTable();
+    });
+
+    $("sortDir").addEventListener("change", (e) => {
+      viewSortDir = e.target.value;
+      renderTable();
+    });
+
+    $("btnResetSort").addEventListener("click", () => {
+      viewSortBy = "order"; viewSortDir = "asc";
+      $("sortBy").value = "order";
+      $("sortDir").value = "asc";
+      $("searchBox").value = "";
+      viewSearch = "";
+      renderTable();
+    });
+
+    function computeRemaining(item){
+      const start = Number(item.start)||0;
+      const bought = Number(item.bought)||0;
+      const spent = Number(item.spent)||0;
+      return (start + bought) - spent;
     }
 
-    function renderHeader(){
-      const tr = $("theadRow");
-      tr.innerHTML = "";
-
-      visibleCols().forEach(c=>{
-        const th = document.createElement("th");
-        th.className = "p-3";
-        if (c.id === "__drag") th.className = "p-3 text-center w-8";
-        if (c.id === "__delete") th.className = "p-3 text-center w-12";
-        if (c.width) th.style.width = c.width + "px";
-
-        // Color hints for common columns
-        if (c.id === "start") th.className += " text-emerald-300";
-        if (c.id === "bought") th.className += " text-sky-300";
-        if (c.id === "spent") th.className += " text-orange-300";
-
-        th.textContent = c.label || c.id;
-        tr.appendChild(th);
-      });
+    function computeValue(item){
+      const remaining = computeRemaining(item);
+      const cost = Number(item.cost)||0;
+      return remaining * cost;
     }
 
-    function styleByColor(color){
-      // tailwind-ish tokens
-      if (color === "emerald") return "text-emerald-300 bg-emerald-500/10 border border-emerald-500/30";
-      if (color === "sky")     return "text-sky-300 bg-sky-500/10 border border-sky-500/30";
-      if (color === "orange")  return "text-orange-300 bg-orange-500/10 border border-orange-500/30";
-      if (color === "red")     return "text-red-300 bg-red-500/10 border border-red-500/30";
-      if (color === "violet")  return "text-violet-300 bg-violet-500/10 border border-violet-500/30";
-      return "";
-    }
+    function filteredSortedInventory(){
+      let arr = [...inventory];
 
-    function renderCell(item, col){
-      const id = item.id;
-      const u = getUi();
-
-      // Special columns
-      if (col.type === "drag"){
-        return `<td class="p-2 text-center"><i class="fas fa-grip-vertical handle"></i></td>`;
-      }
-      if (col.type === "delete"){
-        return `
-          <td class="p-2 text-center">
-            <button ${isAdmin ? "" : "disabled"} onclick="deleteItem('${id}')"
-              class="text-slate-500 hover:text-red-500 transition-colors">
-              <i class="fas fa-trash-alt"></i>
-            </button>
-          </td>`;
-      }
-
-      // Computed
-      if (col.type === "computed"){
-        const v = compute(item, col);
-        let cls = "text-slate-200 font-bold";
-        if (col.key === "status") cls = isLow(item) ? "text-red-400 font-bold" : "text-emerald-400 font-bold";
-        if (col.key === "totalValue") cls = "text-blue-400 font-bold text-xs";
-        if (col.key === "remaining") cls = isLow(item) ? "text-red-400 font-bold" : "text-slate-200 font-bold";
-
-        const show = (typeof v === "number") ? v : v;
-        const text = (typeof show === "number") ? show : show;
-
-        return `<td class="p-2 text-center ${cls}">${(typeof text === "number") ? text : esc(text)}</td>`;
-      }
-
-      // Normal fields
-      const raw = getVal(item, col.id);
-
-      if (col.type === "image"){
-        const url = String(raw || "").trim();
-        const thumb = url ? `<img src="${esc(url)}" alt="" class="w-12 h-12 object-cover rounded-lg mx-auto border border-white/10" />` :
-                            `<div class="w-12 h-12 rounded-lg mx-auto border border-white/10 bg-white/5 flex items-center justify-center text-slate-400 text-xs">لا يوجد</div>`;
-        const inp = `
-          <input ${isAdmin?"":"disabled"} type="text" value="${esc(url)}"
-            onblur="updateField('${id}','${col.id}',this.value)"
-            class="table-input w-40 p-1 rounded text-center text-xs mt-1" placeholder="Image URL">`;
-        return `<td class="p-2 text-center">${thumb}${inp}</td>`;
-      }
-
-      if (col.type === "number"){
-        const v = Number(raw) || 0;
-        const extra = styleByColor(col.color);
-        return `
-          <td class="p-2 text-center">
-            <input ${isAdmin?"":"disabled"} type="number" step="any" value="${v}"
-              onchange="updateField('${id}','${col.id}',this.value)"
-              class="table-input w-20 p-1 rounded text-center font-bold ${extra}">
-          </td>`;
-      }
-
-      // text default
-      const txt = String(raw ?? "");
-      const wClass = (col.id === "name") ? "name-input w-full" : "desc-input w-full";
-      const ph = col.label || col.id;
-      return `
-        <td class="p-2">
-          <input ${isAdmin?"":"disabled"} type="text" value="${esc(txt)}"
-            onblur="updateField('${id}','${col.id}',this.value)"
-            class="${wClass} bg-transparent border-none focus:ring-1 focus:ring-blue-500 rounded px-2"
-            placeholder="${esc(ph)}">
-        </td>`;
-    }
-
-    function sortValue(item, colId){
-      const col = (schema.columns || []).find(c=>c.id===colId);
-      if (!col) return "";
-      if (col.type === "computed") return compute(item, col);
-
-      const v = getVal(item, colId);
-      if (col.type === "number") return Number(v) || 0;
-      return String(v ?? "").toLowerCase();
-    }
-
-    function renderTable(){
-      const body = $("tableBody");
-      body.innerHTML = "";
-
-      let view = [...inventory];
-
-      // filter
-      if (searchTerm.trim()){
-        const q = searchTerm.trim().toLowerCase();
-        view = view.filter(it=>{
-          const n = String(getVal(it,"name") ?? "").toLowerCase();
-          const d = String(getVal(it,"desc") ?? "").toLowerCase();
-          return n.includes(q) || d.includes(q);
+      if(viewSearch){
+        arr = arr.filter(it => {
+          const n = String(it.name||"").toLowerCase();
+          const d = String(it.desc||"").toLowerCase();
+          return n.includes(viewSearch) || d.includes(viewSearch);
         });
       }
-      if (showLowOnly) view = view.filter(isLow);
 
-      // sort
-      const dir = sortDir === "asc" ? 1 : -1;
-      const colId = sortColId || settings.defaultSort || "name";
-      view.sort((a,b)=>{
-        const av = sortValue(a, colId);
-        const bv = sortValue(b, colId);
-        if (typeof av === "number" && typeof bv === "number") return (av - bv) * dir;
-        return String(av).localeCompare(String(bv), "ar") * dir;
+      const dir = viewSortDir === "desc" ? -1 : 1;
+
+      arr.sort((a,b) => {
+        if(viewSortBy === "order") return ((a.order||0)-(b.order||0))*dir;
+        if(viewSortBy === "name") return String(a.name||"").localeCompare(String(b.name||""), "ar") * dir;
+        if(viewSortBy === "remaining") return (computeRemaining(a)-computeRemaining(b))*dir;
+        if(viewSortBy === "value") return (computeValue(a)-computeValue(b))*dir;
+        if(viewSortBy === "lowFirst"){
+          const s = loadLocalSettings();
+          const th = Number(s.lowThreshold ?? 2);
+          const al = computeRemaining(a) <= th ? 0 : 1;
+          const bl = computeRemaining(b) <= th ? 0 : 1;
+          if(al !== bl) return (al - bl);
+          return (computeRemaining(a)-computeRemaining(b))*dir;
+        }
+        return 0;
       });
 
-      // totals
-      let totalVal = 0;
-      let totalSpent = 0;
-      let lowCount = 0;
-
-      const cols = visibleCols();
-
-      view.forEach(item=>{
-        totalVal += Number(compute(item,{key:"totalValue"})) || 0;
-        totalSpent += num(getVal(item,"spent"));
-        if (isLow(item)) lowCount++;
-
-        const tr = document.createElement("tr");
-        tr.className = "border-b border-slate-800 hover:bg-slate-800/40 transition-colors";
-        tr.setAttribute("data-id", item.id);
-
-        tr.innerHTML = cols.map(c=>renderCell(item,c)).join("");
-        body.appendChild(tr);
-      });
-
-      const u = getUi();
-      $("totalValue").innerText = totalVal.toLocaleString() + " " + (u.texts.currency || "");
-      $("totalItems").innerText = view.length;
-      $("lowStockCount").innerText = lowCount;
-      $("totalSpent").innerText = totalSpent;
-
-      ensureSortableRows();
+      return arr;
     }
 
-    // ======= Schema Builder UI =======
-    function openSchemaModal(){
-      if (!isAdmin) return alert("بناء الجدول للأدمن فقط");
-      $("schemaModal").style.display = "block";
-      renderSchemaTable();
-    }
-    function closeSchemaModal(){ $("schemaModal").style.display = "none"; }
-
-    function renderSchemaTable(){
-      const body = $("schemaBody");
+    // ========= 10) RENDER =========
+    function renderTable(){
+      const body = $("tableBody");
+      if(!body) return;
       body.innerHTML = "";
 
-      schema.columns.forEach((c, idx)=>{
-        const isSystem = c.id.startsWith("__") || c.type === "computed" || c.type === "drag" || c.type === "delete";
+      const s = loadLocalSettings();
+      const th = Number(s.lowThreshold ?? 2);
+
+      const list = filteredSortedInventory();
+
+      let totalVal = 0;
+      let lowCount = 0;
+
+      // إجمالي المصروف
+      let totalSpentCount = 0;
+
+      list.forEach((item) => {
+        const start = Number(item.start)||0;
+        const bought = Number(item.bought)||0;
+        const spent = Number(item.spent)||0;
+        const cost = Number(item.cost)||0;
+
+        const remaining = (start + bought) - spent;
+        const rowValue = remaining * cost;
+
+        totalVal += rowValue;
+        totalSpentCount += spent;
+        if(remaining <= th) lowCount++;
+
+        const statusText = remaining <= th ? "نقص" : "متوفر";
+        const statusClass = remaining <= th ? "text-red-300 font-extrabold" : "text-emerald-300 font-extrabold";
+
+        const imgUrl = String(item.img||"").trim();
+        const imgHtml = imgUrl
+          ? `<div class="imgbox"><img src="${esc(imgUrl)}" onerror="this.style.display='none'"></div>`
+          : `<div class="imgbox flex items-center justify-center"><i class="fas fa-image" style="color:var(--muted)"></i></div>`;
+
         const tr = document.createElement("tr");
-        tr.className = "border-b border-slate-800";
-        tr.setAttribute("data-colid", c.id);
+        tr.className = "border-b border-slate-800/60 hover:bg-slate-800/30 transition-colors";
+        tr.setAttribute("data-id", item.id);
 
-        const colorOptions = `
-          <option value="" ${!c.color?"selected":""}>-</option>
-          <option value="emerald" ${c.color==="emerald"?"selected":""}>أخضر</option>
-          <option value="sky" ${c.color==="sky"?"selected":""}>أزرق</option>
-          <option value="orange" ${c.color==="orange"?"selected":""}>برتقالي</option>
-          <option value="red" ${c.color==="red"?"selected":""}>أحمر</option>
-          <option value="violet" ${c.color==="violet"?"selected":""}>بنفسجي</option>
-        `;
-
-        const typeOptions = `
-          <option value="text" ${c.type==="text"?"selected":""}>نص</option>
-          <option value="number" ${c.type==="number"?"selected":""}>رقم</option>
-          <option value="image" ${c.type==="image"?"selected":""}>صورة (URL)</option>
-        `;
+        // إذا مو أدمن: نعطل الإدخال
+        const disabled = isAdminMode ? "" : "disabled";
 
         tr.innerHTML = `
           <td class="p-2 text-center"><i class="fas fa-grip-vertical handle"></i></td>
 
-          <td class="p-2">
-            <input ${isSystem?"disabled":""} class="w-full p-1 rounded text-sm" value="${esc(c.label||"")}"
-              data-k="label" />
-          </td>
-
-          <td class="p-2 text-xs text-slate-400">${esc(c.id)}</td>
+          <td class="p-2 text-center">${imgHtml}</td>
 
           <td class="p-2">
-            ${isSystem
-              ? `<span class="text-xs text-slate-400">${c.type}${c.key? " / "+c.key:""}</span>`
-              : `<select class="w-full p-1 rounded text-sm" data-k="type">${typeOptions}</select>`}
+            <input ${disabled} type="text" value="${esc(item.name)}"
+              onblur="updateField('${item.id}','name',this.value)"
+              class="name-input w-full bg-transparent border-none focus:ring-1 focus:ring-blue-500 font-extrabold rounded-xl px-2 py-1">
+          </td>
+
+          <td class="p-2">
+            <input ${disabled} type="text" value="${esc(item.desc)}"
+              onblur="updateField('${item.id}','desc',this.value)"
+              class="desc-input w-full bg-transparent border-none focus:ring-1 focus:ring-blue-500 rounded-xl px-2 py-1">
           </td>
 
           <td class="p-2 text-center">
-            <input type="checkbox" ${c.visible!==false?"checked":""} ${isSystem?"disabled":""} data-k="visible" />
+            <input ${disabled} type="number" step="any" value="${start}"
+              onchange="updateField('${item.id}','start',this.value)"
+              class="table-input w-20 p-1 rounded-xl text-center font-extrabold
+                     text-emerald-200 bg-emerald-500/10 border border-emerald-500/30">
           </td>
 
           <td class="p-2 text-center">
-            <input type="checkbox" ${c.inAdd?"checked":""} ${isSystem?"disabled":""} data-k="inAdd" />
+            <input ${disabled} type="number" step="any" value="${bought}"
+              onchange="updateField('${item.id}','bought',this.value)"
+              class="table-input w-20 p-1 rounded-xl text-center font-extrabold
+                     text-sky-200 bg-sky-500/10 border border-sky-500/30">
           </td>
 
           <td class="p-2 text-center">
-            <input type="checkbox" ${c.export?"checked":""} ${c.type==="drag"||c.type==="delete"?"disabled":""} data-k="export" />
+            <input ${disabled} type="number" step="any" value="${spent}"
+              onchange="updateField('${item.id}','spent',this.value)"
+              class="table-input w-20 p-1 rounded-xl text-center font-extrabold
+                     text-orange-200 bg-orange-500/10 border border-orange-500/30">
+          </td>
+
+          <td class="p-2 text-center font-extrabold ${remaining <= th ? "text-red-300" : "text-slate-100"}">
+            ${remaining}
           </td>
 
           <td class="p-2 text-center">
-            <input ${isSystem?"disabled":""} type="number" class="w-20 p-1 rounded text-sm text-center" value="${Number(c.width)||120}" data-k="width" />
+            <input ${disabled} type="number" step="any" value="${cost}"
+              onchange="updateField('${item.id}','cost',this.value)"
+              class="table-input w-24 p-1 rounded-xl text-center">
+          </td>
+
+          <td class="p-2 text-center font-extrabold" style="color:var(--accent)">
+            ${Number.isFinite(rowValue) ? rowValue.toLocaleString() : "0"}
+          </td>
+
+          <td class="p-2 text-center ${statusClass}">
+            ${statusText}
           </td>
 
           <td class="p-2 text-center">
-            ${isSystem ? `<span class="text-xs text-slate-500">-</span>` : `<select class="w-full p-1 rounded text-sm" data-k="color">${colorOptions}</select>`}
-          </td>
-
-          <td class="p-2 text-center">
-            ${isSystem ? `<span class="text-xs text-slate-500">-</span>` : `<button class="px-3 py-1 rounded text-xs bg-red-500/20 text-red-300" data-act="del">حذف</button>`}
+            <button ${disabled} onclick="deleteItem('${item.id}')"
+              class="text-slate-500 hover:text-red-400 transition-colors">
+              <i class="fas fa-trash-alt"></i>
+            </button>
           </td>
         `;
+
         body.appendChild(tr);
       });
 
-      ensureSortableSchema();
+      $("totalValue").innerText = totalVal.toLocaleString() + " د.ع";
+      $("totalItems").innerText = String(list.length);
+      $("lowStockCount").innerText = String(lowCount);
+
+      // نخلي بالنص الصغير اسفل: إجمالي المصروف
+      // (بدون كارت إضافي، حتى تبقى بسيطة)
+      // إذا تريد كارت، أضيفه بسهولة.
+
+      ensureSortable();
+      setRoleUI();
     }
 
-    function readSchemaFromUI(){
-      const rows = Array.from(document.querySelectorAll("#schemaBody tr"));
-      const newCols = [];
+    // Drag reorder (Admin only)
+    function ensureSortable(){
+      if(sortableInited) return;
+      if(typeof Sortable === "undefined") return;
+      const tb = $("tableBody");
 
-      rows.forEach(r=>{
-        const colId = r.getAttribute("data-colid");
-        const old = schema.columns.find(c=>c.id===colId);
-        if (!old) return;
-
-        const isSystem = colId.startsWith("__") || old.type === "computed" || old.type === "drag" || old.type === "delete";
-        const inputs = r.querySelectorAll("[data-k]");
-        const next = structuredClone(old);
-
-        inputs.forEach(el=>{
-          const k = el.getAttribute("data-k");
-          if (el.type === "checkbox") next[k] = el.checked;
-          else if (k === "width") next[k] = Number(el.value) || 120;
-          else next[k] = el.value;
-        });
-
-        // system columns keep safe defaults
-        if (isSystem){
-          next.visible = old.visible;
-          next.inAdd = old.inAdd;
-          next.type = old.type;
-          next.key = old.key;
-        }
-
-        // sanity: never allow delete/drag export
-        if (next.type === "drag" || next.type === "delete") next.export = false;
-
-        newCols.push(next);
-      });
-
-      return { ...schema, columns: newCols };
-    }
-
-    function addNewColumn(){
-      if (!isAdmin) return;
-      const id = "c_" + Math.random().toString(36).slice(2,8) + "_" + Date.now().toString(36).slice(-3);
-      const insertAt = schema.columns.findIndex(c=>c.id==="__delete");
-      const col = { id, label:"عمود جديد", type:"text", visible:true, inAdd:false, export:true, width:140, color:"" };
-
-      const cols = [...schema.columns];
-      if (insertAt > -1) cols.splice(insertAt, 0, col);
-      else cols.push(col);
-
-      schema = { ...schema, columns: cols };
-      renderSchemaTable();
-    }
-
-    function attachSchemaEvents(){
-      // delete buttons
-      $("schemaBody").addEventListener("click", (e)=>{
-        const btn = e.target.closest("[data-act='del']");
-        if (!btn) return;
-        const tr = btn.closest("tr");
-        const id = tr.getAttribute("data-colid");
-        if (!id) return;
-        if (!confirm("حذف العمود؟ (لن يحذف بياناته القديمة من السيرفر، بس يخفيه/يشيله من الجدول)")) return;
-        schema = { ...schema, columns: schema.columns.filter(c=>c.id!==id) };
-        renderSchemaTable();
-      });
-    }
-
-    // ======= Sortables =======
-    function ensureSortableRows(){
-      if (sortableRowsInited) return;
-      if (typeof Sortable === "undefined") return;
-
-      Sortable.create($("tableBody"), {
+      Sortable.create(tb, {
         handle: ".handle",
         animation: 150,
-        onEnd: async ()=>{
-          if (!isAdmin) return;
-          try {
+        onEnd: async () => {
+          if(!isAdminMode){
+            alert("❌ ترتيب الصفوف للأدمن فقط.");
+            renderTable();
+            return;
+          }
+          try{
             const batch = writeBatch(db);
-            document.querySelectorAll("#tableBody tr").forEach((row, idx)=>{
+            document.querySelectorAll("#tableBody tr").forEach((row, idx) => {
               const id = row.getAttribute("data-id");
-              if (!id) return;
-              batch.update(doc(db, "artifacts", appId, "public", "data", "inventory", id), { order: idx });
+              if(!id) return;
+              batch.update(doc(db, "artifacts", APP_ID, "public", "data", "inventory", id), { order: idx });
             });
             await batch.commit();
-          } catch (e) {
-            console.error("Sort save error:", e);
+          }catch(e){
+            console.error(e);
+            if(e?.code === "permission-denied"){
+              isAdminMode = false; setRoleUI();
+              alert("❌ ما عندك صلاحية. سجّل دخول Admin.");
+            }
           }
         }
       });
 
-      sortableRowsInited = true;
+      sortableInited = true;
     }
 
-    function ensureSortableSchema(){
-      if (sortableSchemaInited) return;
-      if (typeof Sortable === "undefined") return;
-
-      Sortable.create($("schemaBody"), {
-        handle: ".handle",
-        animation: 150
-      });
-
-      sortableSchemaInited = true;
-    }
-
-    // ======= Firebase CRUD =======
-    window.updateField = async (id, field, value)=>{
-      if (!isAdmin) return alert("التعديل للأدمن فقط");
-      const col = schema.columns.find(c=>c.id===field);
-      if (!col) return;
-
-      const ref = doc(db, "artifacts", appId, "public", "data", "inventory", id);
-
-      let val = value;
-      if (col.type === "number") val = Number(value) || 0;
-      else val = String(value ?? "");
-
-      // write into values map
-      const payload = {
-        [`values.${field}`]: val,
-        updatedAt: serverTimestamp()
-      };
-
-      // legacy compatibility for common ids
-      if (["name","desc","start","bought","spent","cost","image"].includes(field)){
-        payload[field] = val;
-      }
-
-      try {
-        await updateDoc(ref, payload);
-      } catch (e){
-        console.error(e);
-        alert("صار خطأ بالتحديث");
-      }
-    };
-
-    window.deleteItem = async (id)=>{
-      if (!isAdmin) return alert("الحذف للأدمن فقط");
-      if (!confirm("حذف نهائي؟")) return;
-      await deleteDoc(doc(db, "artifacts", appId, "public", "data", "inventory", id));
-    };
-
-    // ======= Meta: schema + settings =======
-    async function initMetaIfMissing(){
-      if (!isAdmin) return;
-      try {
-        const sDoc = await getDoc(schemaRef());
-        if (!sDoc.exists()){
-          await setDoc(schemaRef(), DEFAULT_SCHEMA);
-        }
-        const setDocSnap = await getDoc(settingsRef());
-        if (!setDocSnap.exists()){
-          await setDoc(settingsRef(), DEFAULT_SETTINGS);
-        }
-      } catch(e){
-        console.error("initMetaIfMissing error:", e);
-      }
-    }
-
-    function listenMeta(){
-      onSnapshot(schemaRef(), (snap)=>{
-        if (snap.exists()){
-          const data = snap.data();
-          schema = data && data.columns ? data : structuredClone(DEFAULT_SCHEMA);
-        } else {
-          schema = structuredClone(DEFAULT_SCHEMA);
-        }
-        renderHeader();
-        renderAddForm();
-        rebuildSortSelect();
-        renderTable();
-      });
-
-      onSnapshot(settingsRef(), (snap)=>{
-        if (snap.exists()){
-          settings = { ...structuredClone(DEFAULT_SETTINGS), ...(snap.data() || {}) };
-        } else {
-          settings = structuredClone(DEFAULT_SETTINGS);
-        }
-        $("lowThreshold").value = Number(settings.lowThreshold ?? 2);
-        sortColId = settings.defaultSort || sortColId;
-        sortDir = settings.defaultSortDir || sortDir;
-        showLowOnly = !!settings.showLowOnly;
-        updateSortDirBtn();
-        updateLowOnlyBtn();
-        renderTable();
-      });
-    }
-
-    function updateSortDirBtn(){
-      const btn = $("sortDirBtn");
-      if (sortDir === "asc"){
-        btn.innerHTML = `<i class="fas fa-arrow-up-short-wide"></i> تصاعدي`;
-      } else {
-        btn.innerHTML = `<i class="fas fa-arrow-down-wide-short"></i> تنازلي`;
-      }
-    }
-    function updateLowOnlyBtn(){
-      const btn = $("lowOnlyBtn");
-      btn.style.background = showLowOnly ? "var(--accent,#3b82f6)" : "";
-      btn.style.color = showLowOnly ? "#fff" : "";
-    }
-
-    async function saveSettings(){
-      const low = Number($("lowThreshold").value) || 2;
-      const payload = {
-        lowThreshold: low,
-        defaultSort: sortColId || "name",
-        defaultSortDir: sortDir || "desc",
-        showLowOnly: !!showLowOnly
-      };
-
-      if (!isAdmin){
-        // allow local preview only
-        settings = { ...settings, ...payload };
-        renderTable();
-        return;
-      }
-      await setDoc(settingsRef(), payload, { merge:true });
-    }
-
-    async function saveSchema(){
-      if (!isAdmin) return alert("الحفظ للأدمن فقط");
-      const next = readSchemaFromUI();
-
-      // safety: ensure required system cols exist
-      const mustHave = ["__drag","__delete","remaining","totalValue","status"];
-      const ids = new Set(next.columns.map(c=>c.id));
-      mustHave.forEach(x=>{
-        if (!ids.has(x)){
-          alert("خطأ: لازم تبقى الأعمدة المحسوبة/النظامية موجودة");
-          throw new Error("Missing required column " + x);
-        }
-      });
-
-      await setDoc(schemaRef(), next, { merge:false });
-      closeSchemaModal();
-    }
-
-    // ======= Inventory realtime =======
-    function startRealtime(){
-      const q = query(invCol());
-      onSnapshot(q, (snap)=>{
-        inventory = snap.docs.map(d=>{
-          const data = d.data() || {};
-          // ensure values map exists (compat)
-          const values = data.values || {
-            name: data.name || "",
-            desc: data.desc || "",
-            start: Number(data.start)||0,
-            bought: Number(data.bought)||0,
-            spent: Number(data.spent)||0,
-            cost: Number(data.cost)||0,
-            image: data.image || ""
-          };
-          return { id:d.id, ...data, values };
-        }).sort((a,b)=>(a.order||0)-(b.order||0));
-
-        renderTable();
-      }, (err)=>{
-        console.error(err);
-        setStatus("status-offline", "فشل الاتصال: " + (err?.code || err?.message || "Firestore error"));
-      });
-    }
-
-    // ======= Add item =======
-    $("addForm").addEventListener("submit", async (e)=>{
-      e.preventDefault();
-      if (!isAdmin) return alert("الإضافة للأدمن فقط");
-
-      const cols = dataColsForAdd();
-      const values = {};
-      for (const c of cols){
-        const el = $("add_" + c.id);
-        if (!el) continue;
-        let v = el.value;
-        if (c.type === "number") v = Number(v) || 0;
-        else v = String(v ?? "").trim();
-        if (c.required && !String(v).trim()) return alert("حقل مطلوب: " + (c.label || c.id));
-        values[c.id] = v;
-      }
-
-      // defaults for common numeric tracking
-      if (values.bought === undefined) values.bought = 0;
-      if (values.spent === undefined) values.spent = 0;
-      if (values.start === undefined) values.start = 0;
-      if (values.cost === undefined) values.cost = 0;
-
-      const docData = {
-        values,
-        order: inventory.length,
-        createdAt: Date.now(),
-        updatedAt: serverTimestamp(),
-
-        // legacy for compatibility
-        name: values.name || "",
-        desc: values.desc || "",
-        start: Number(values.start)||0,
-        bought: Number(values.bought)||0,
-        spent: Number(values.spent)||0,
-        cost: Number(values.cost)||0,
-        image: values.image || ""
-      };
-
-      try {
-        await addDoc(invCol(), docData);
-        e.target.reset();
-      } catch (err){
-        console.error(err);
-        alert("صار خطأ بالإضافة");
-      }
-    });
-
-    // ======= Export Excel (dynamic) =======
-    window.exportToExcel = ()=>{
-      if (typeof XLSX === "undefined") return alert("XLSX مو محمّلة");
-
-      const cols = exportCols();
-      const rows = inventory.map(it=>{
-        const row = {};
-        cols.forEach(c=>{
-          const label = c.label || c.id;
-          if (c.type === "computed"){
-            const v = compute(it, c);
-            row[label] = (typeof v === "number") ? v : String(v ?? "");
-          } else if (c.type === "number"){
-            row[label] = Number(getVal(it, c.id)) || 0;
-          } else {
-            row[label] = String(getVal(it, c.id) ?? "");
-          }
-        });
-        return row;
-      });
-
-      const ws = XLSX.utils.json_to_sheet(rows);
-      const wb = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(wb, ws, "Inventory");
-      XLSX.writeFile(wb, `مخزن_${new Date().toISOString().split("T")[0]}.xlsx`);
-    };
-
-    // ======= Download HTML =======
-    window.downloadAppFile = ()=>{
+    // ========= 11) EXPORT / DOWNLOAD =========
+    window.downloadAppFile = () => {
       const content = document.documentElement.outerHTML;
-      const blob = new Blob([content], { type:"text/html" });
+      const blob = new Blob([content], { type: "text/html" });
       const a = document.createElement("a");
       a.href = URL.createObjectURL(blob);
       a.download = "Clinic_Storage_System.html";
@@ -1141,116 +813,139 @@
       document.body.removeChild(a);
     };
 
-    // ======= UI events =======
-    $("searchBox").addEventListener("input", (e)=>{
-      searchTerm = e.target.value || "";
+    window.exportToExcel = () => {
+      if(typeof XLSX === "undefined"){
+        alert("XLSX غير محمّلة");
+        return;
+      }
+
+      const labels = loadLabels();
+      const s = loadLocalSettings();
+      const th = Number(s.lowThreshold ?? 2);
+
+      const data = filteredSortedInventory().map(i => {
+        const start = Number(i.start)||0;
+        const bought = Number(i.bought)||0;
+        const spent = Number(i.spent)||0;
+        const cost = Number(i.cost)||0;
+        const remaining = (start + bought) - spent;
+        const status = remaining <= th ? "نقص" : "متوفر";
+
+        return {
+          [labels.name]: i.name || "",
+          [labels.desc]: i.desc || "",
+          "صورة": i.img || "",
+          [labels.start]: start,
+          [labels.bought]: bought,
+          [labels.spent]: spent,
+          [labels.remaining]: remaining,
+          [labels.cost]: cost,
+          [labels.value]: remaining * cost,
+          [labels.status]: status
+        };
+      });
+
+      const ws = XLSX.utils.json_to_sheet(data);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "Inventory");
+      XLSX.writeFile(wb, `مخزن_د_ثائر_${new Date().toISOString().split("T")[0]}.xlsx`);
+    };
+
+    // ========= 12) SETTINGS MODAL =========
+    function openSettings(){ $("settingsBackdrop").classList.add("show"); }
+    function closeSettings(){ $("settingsBackdrop").classList.remove("show"); }
+
+    $("btnSettings").addEventListener("click", openSettings);
+    $("btnCloseSettings").addEventListener("click", closeSettings);
+    $("settingsBackdrop").addEventListener("click", (e) => {
+      if(e.target === $("settingsBackdrop")) closeSettings();
+    });
+
+    // Local settings save/reset
+    $("saveLocalSettingsBtn").addEventListener("click", () => {
+      const s = loadLocalSettings();
+      s.theme = $("themeSelect").value;
+      s.title = ($("titleInput").value || "").trim() || defaultLocalSettings.title;
+      s.lowThreshold = Math.max(0, parseInt($("lowThresholdInput").value || "2", 10));
+      saveLocalSettings(s);
+      applyLocalSettings();
       renderTable();
+      alert("✅ تم حفظ إعدادات الواجهة (محلياً).");
     });
 
-    $("sortCol").addEventListener("change", (e)=>{
-      sortColId = e.target.value;
+    $("resetLocalSettingsBtn").addEventListener("click", () => {
+      saveLocalSettings({ ...defaultLocalSettings });
+      applyLocalSettings();
       renderTable();
+      alert("✅ رجعنا الإعدادات للوضع الافتراضي.");
     });
 
-    $("sortDirBtn").addEventListener("click", ()=>{
-      sortDir = (sortDir === "asc") ? "desc" : "asc";
-      updateSortDirBtn();
-      renderTable();
+    // Labels save/reset
+    $("saveLabelsBtn").addEventListener("click", () => {
+      const l = {
+        name: $("lbl_name").value || defaultLabels.name,
+        desc: $("lbl_desc").value || defaultLabels.desc,
+        start: $("lbl_start").value || defaultLabels.start,
+        bought: $("lbl_bought").value || defaultLabels.bought,
+        spent: $("lbl_spent").value || defaultLabels.spent,
+        remaining: $("lbl_remaining").value || defaultLabels.remaining,
+        cost: $("lbl_cost").value || defaultLabels.cost,
+        value: $("lbl_value").value || defaultLabels.value,
+        status: $("lbl_status").value || defaultLabels.status
+      };
+      saveLabels(l);
+      applyLabels();
+      alert("✅ تم حفظ أسماء الأعمدة (محلياً).");
     });
 
-    $("lowOnlyBtn").addEventListener("click", ()=>{
-      showLowOnly = !showLowOnly;
-      updateLowOnlyBtn();
-      renderTable();
+    $("resetLabelsBtn").addEventListener("click", () => {
+      saveLabels({ ...defaultLabels });
+      applyLabels();
+      alert("✅ رجعنا أسماء الأعمدة للوضع الافتراضي.");
     });
 
-    $("saveSettingsBtn").addEventListener("click", saveSettings);
+    // ========= 13) ADMIN LOGIN =========
+    function setAdminState(msg, ok=false){
+      $("adminState").textContent = msg;
+      $("adminState").style.color = ok ? "var(--good)" : "var(--bad)";
+    }
 
-    $("btnSchema").addEventListener("click", openSchemaModal);
-    $("closeSchemaBtn").addEventListener("click", closeSchemaModal);
-    $("addColBtn").addEventListener("click", addNewColumn);
-    $("saveSchemaBtn").addEventListener("click", async ()=>{
-      try { await saveSchema(); }
-      catch(e){ console.error(e); }
-    });
-
-    $("schemaModal").addEventListener("click", (e)=>{
-      if (e.target === $("schemaModal")) closeSchemaModal();
-    });
-
-    $("btnAdminLoginToggle").addEventListener("click", ()=>{
-      $("adminBox").classList.toggle("hidden");
-      $("adminBox").classList.toggle("grid");
-    });
-
-    $("doAdminLogin").addEventListener("click", async ()=>{
-      const email = $("adminEmail").value.trim();
-      const pass = $("adminPass").value.trim();
-      if (!email || !pass) return alert("اكتب الإيميل والباسورد");
-
-      try {
+    $("adminLoginBtn").addEventListener("click", async () => {
+      try{
+        const email = ($("adminEmail").value || "").trim();
+        const pass  = ($("adminPass").value || "");
+        if(!email || !pass){
+          setAdminState("اكتب الإيميل والباسورد", false);
+          return;
+        }
         await signInWithEmailAndPassword(auth, email, pass);
-      } catch(e){
+        // إذا الحساب أدمن فعلاً، أول عملية كتابة راح تثبّت isAdminMode = true
+        setAdminState("✅ تم تسجيل الدخول. جرّب تعديل أي خانة.", true);
+      }catch(e){
         console.error(e);
-        alert("فشل تسجيل الدخول");
+        setAdminState("❌ فشل الدخول", false);
+        alert(e?.code || e?.message || "Login error");
       }
     });
 
-    $("doAdminLogout").addEventListener("click", async ()=>{
-      await signOut(auth);
+    $("adminLogoutBtn").addEventListener("click", async () => {
+      try{
+        await signOut(auth);
+        isAdminMode = false;
+        setRoleUI();
+        setAdminState("تم الخروج", true);
+        // يرجع Anonymous تلقائياً حتى يبقى يقرأ
+        await initAnonymous();
+      }catch(e){
+        console.error(e);
+      }
     });
 
-    // ======= Global clicks in schema table (delete) =======
-    attachSchemaEvents();
-
-    // ======= Boot =======
-    __runAfterDom(async ()=>{
-      applyUi();
-
-      setStatus("status-connecting", `<i class="fas fa-circle text-[8px]"></i> جاري الاتصال...`);
-
-      listenMeta();
-
-      onAuthStateChanged(auth, async (user)=>{
-        currentUser = user;
-
-        // Admin: email/password
-        if (user && !user.isAnonymous){
-          setStatus("status-online", `<i class="fas fa-circle text-[8px]"></i> متصل سحابياً`);
-          $("userDisplay").innerText = `المعرف: ${user.uid.substring(0,8)}`;
-          setAdminUI(true);
-          await initMetaIfMissing();
-          startRealtime();
-          return;
-        }
-
-        // Signed out -> anonymous viewer
-        if (!user){
-          try {
-            await signInAnonymously(auth);
-            return;
-          } catch(e){
-            console.error(e);
-            setStatus("status-offline", "فشل الاتصال: " + (e?.code || e?.message || "Auth error"));
-            return;
-          }
-        }
-
-        // Anonymous viewer
-        setStatus("status-online", `<i class="fas fa-circle text-[8px]"></i> متصل سحابياً`);
-        $("userDisplay").innerText = `المعرف: ${user.uid.substring(0,8)}`;
-        setAdminUI(false);
-        startRealtime();
-      });
-
-      // Initial render
-      renderHeader();
-      renderAddForm();
-      rebuildSortSelect();
-      updateSortDirBtn();
-      updateLowOnlyBtn();
-      $("lowThreshold").value = Number(DEFAULT_SETTINGS.lowThreshold);
-    });
+    // ========= 14) INIT =========
+    // افتراضياً قراءة فقط
+    isAdminMode = false;
+    setRoleUI();
+    initAnonymous();
   </script>
 </body>
 </html>
