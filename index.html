@@ -1,975 +1,119 @@
+
 <!DOCTYPE html>
-<html lang="ar" dir="rtl">
+<html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>مخزن د. ثائر - سحابي</title>
-
-  <!-- Tailwind (للتجربة/المشاريع الصغيرة OK) -->
-  <script src="https://cdn.tailwindcss.com"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/js/all.min.js" crossorigin="anonymous"></script>
-
-  <!-- Excel + Sortable -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js" crossorigin="anonymous"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/Sortable/1.15.0/Sortable.min.js" crossorigin="anonymous"></script>
-
-  <style>
-    :root{
-      --bg:#0f172a; --panel:rgba(30,41,59,.70); --panel2:rgba(30,41,59,.55);
-      --border:rgba(255,255,255,.10); --text:#e2e8f0; --muted:#94a3b8;
-      --accent:#3b82f6; --good:#10b981; --bad:#f87171; --warn:#fbbf24;
-      --input:rgba(15,23,42,.55);
-    }
-    body{ background:var(--bg); color:var(--text); margin:0; font-family: system-ui,-apple-system,"Segoe UI",Tahoma; }
-    .glass{ background:var(--panel); backdrop-filter: blur(10px); border:1px solid var(--border); }
-    .glass2{ background:var(--panel2); backdrop-filter: blur(10px); border:1px solid var(--border); }
-    input, select, textarea{
-      background: var(--input)!important;
-      border:1px solid var(--border)!important;
-      color:#fff!important;
-      outline:none!important;
-    }
-    input:focus, select:focus, textarea:focus{ border-color: var(--accent)!important; }
-    th{ background: rgba(15,23,42,.85)!important; color: var(--muted)!important; white-space:nowrap; font-size:.82rem; }
-    .handle{ cursor:grab; color: var(--muted); padding:10px; }
-    .status-online{ color: var(--good); }
-    .status-offline{ color: var(--bad); font-weight:700; }
-    .status-connecting{ color: var(--warn); }
-    .chip{ border:1px solid var(--border); background: rgba(2,6,23,.35); padding:.25rem .6rem; border-radius:999px; font-size:.8rem; }
-    .btn{ border-radius:.75rem; padding:.55rem .9rem; font-size:.9rem; font-weight:700; display:inline-flex; gap:.5rem; align-items:center; }
-    .btn-primary{ background: var(--accent); color:#fff; }
-    .btn-primary:hover{ filter: brightness(1.05); }
-    .btn-ghost{ background: rgba(148,163,184,.12); }
-    .btn-ghost:hover{ background: rgba(148,163,184,.18); }
-    .badge-ro{ background: rgba(248,113,113,.12); border: 1px solid rgba(248,113,113,.35); color: #fecaca; }
-    .badge-admin{ background: rgba(16,185,129,.12); border: 1px solid rgba(16,185,129,.35); color: #bbf7d0; }
-    .imgbox{ width:42px; height:42px; border-radius:12px; overflow:hidden; border:1px solid var(--border); background:rgba(2,6,23,.25); }
-    .imgbox img{ width:100%; height:100%; object-fit:cover; display:block; }
-
-    /* Mobile */
-    @media (max-width: 768px) {
-      .table-container { font-size: 13px; }
-      input.table-input { width: 64px !important; padding: 4px !important; font-size: 12px; }
-      .name-input { width: 120px !important; }
-      .desc-input { width: 140px !important; }
-    }
-
-    /* Themes */
-    .theme-dark{
-      --bg:#0b1220; --panel:rgba(17,24,39,.78); --panel2:rgba(17,24,39,.58);
-      --border:rgba(255,255,255,.10); --text:#e5e7eb; --muted:#9ca3af;
-      --accent:#3b82f6; --input:rgba(2,6,23,.45);
-    }
-    .theme-slate{
-      --bg:#0f172a; --panel:rgba(30,41,59,.72); --panel2:rgba(30,41,59,.55);
-      --border:rgba(255,255,255,.10); --text:#e2e8f0; --muted:#94a3b8;
-      --accent:#06b6d4; --input:rgba(15,23,42,.55);
-    }
-    .theme-light{
-      --bg:#f8fafc; --panel:rgba(255,255,255,.78); --panel2:rgba(255,255,255,.65);
-      --border:rgba(2,6,23,.10); --text:#0f172a; --muted:#475569;
-      --accent:#2563eb; --input:rgba(241,245,249,.9);
-    }
-    .theme-emerald{
-      --bg:#071a14; --panel:rgba(7,26,20,.78); --panel2:rgba(7,26,20,.58);
-      --border:rgba(255,255,255,.12); --text:#e7fff6; --muted:#a7f3d0;
-      --accent:#10b981; --input:rgba(2,6,23,.35);
-    }
-    .theme-purple{
-      --bg:#140b2b; --panel:rgba(20,11,43,.78); --panel2:rgba(20,11,43,.58);
-      --border:rgba(255,255,255,.12); --text:#f3e8ff; --muted:#d8b4fe;
-      --accent:#a855f7; --input:rgba(2,6,23,.35);
-    }
-
-    /* Modal */
-    .modal-backdrop{ position:fixed; inset:0; background:rgba(0,0,0,.45); display:none; align-items:center; justify-content:center; padding:16px; z-index:50; }
-    .modal{ width:min(980px, 100%); max-height: 88vh; overflow:auto; border-radius: 18px; }
-    .modal-backdrop.show{ display:flex; }
-  </style>
-</head>
-
-<body class="min-h-screen theme-slate" id="appRoot">
-  <div class="max-w-7xl mx-auto p-4 md:p-6">
-    <!-- Header -->
-    <header class="flex flex-col md:flex-row justify-between items-center mb-5 gap-4">
-      <div class="flex items-center gap-4 w-full md:w-auto">
-        <div class="w-12 h-12 rounded-xl flex items-center justify-center shadow-lg" style="background:var(--accent)">
-          <i class="fas fa-cloud text-2xl text-white"></i>
-        </div>
-
-        <div class="min-w-[220px]">
-          <h1 class="text-xl font-extrabold" id="appTitleText">مخزن د. ثائر السحابي</h1>
-          <div class="flex items-center gap-2 text-xs mt-1">
-            <span id="syncStatus" class="status-connecting">
-              <i class="fas fa-circle text-[8px]"></i> جاري الاتصال...
-            </span>
-            <span class="text-slate-500">|</span>
-            <span id="userDisplay" class="text-slate-400 italic">...</span>
-            <span id="roleBadge" class="chip badge-ro hidden">قراءة فقط</span>
-            <span id="adminBadge" class="chip badge-admin hidden">Admin</span>
-          </div>
-        </div>
-      </div>
-
-      <div class="flex gap-2 w-full md:w-auto overflow-x-auto pb-2 md:pb-0">
-        <button id="btnSettings" class="btn btn-ghost whitespace-nowrap">
-          <i class="fas fa-gear"></i> الإعدادات
-        </button>
-
-        <button onclick="exportToExcel()" class="btn btn-ghost whitespace-nowrap">
-          <i class="fas fa-file-excel"></i> تصدير Excel
-        </button>
-
-        <button onclick="downloadAppFile()" class="btn btn-primary whitespace-nowrap">
-          <i class="fas fa-download"></i> تحميل HTML
-        </button>
-      </div>
-    </header>
-
-    <!-- Top Controls -->
-    <div class="grid grid-cols-1 md:grid-cols-3 gap-3 mb-5">
-      <div class="glass p-4 rounded-2xl flex items-center justify-between gap-3">
-        <div>
-          <div class="text-xs" style="color:var(--muted)">إجمالي القيمة المالية</div>
-          <div id="totalValue" class="text-lg font-extrabold" style="color:var(--accent)">0 د.ع</div>
-        </div>
-        <i class="fas fa-coins text-2xl" style="color:var(--muted)"></i>
-      </div>
-
-      <div class="glass p-4 rounded-2xl flex items-center justify-between gap-3">
-        <div>
-          <div class="text-xs" style="color:var(--muted)">عدد المواد</div>
-          <div id="totalItems" class="text-lg font-extrabold">0</div>
-        </div>
-        <i class="fas fa-layer-group text-2xl" style="color:var(--muted)"></i>
-      </div>
-
-      <div class="glass p-4 rounded-2xl flex items-center justify-between gap-3">
-        <div>
-          <div class="text-xs" style="color:var(--muted)">نواقص (≤ <span id="lowThresholdLabel">2</span>)</div>
-          <div id="lowStockCount" class="text-lg font-extrabold" style="color:var(--bad)">0</div>
-        </div>
-        <i class="fas fa-triangle-exclamation text-2xl" style="color:var(--muted)"></i>
-      </div>
-    </div>
-
-    <!-- Search / Sort -->
-    <div class="glass p-4 rounded-2xl mb-5 flex flex-col md:flex-row gap-3 md:items-center md:justify-between">
-      <div class="flex gap-2 items-center">
-        <i class="fas fa-magnifying-glass" style="color:var(--muted)"></i>
-        <input id="searchBox" class="w-full md:w-[360px] p-2 rounded-xl text-sm" placeholder="بحث بالمادة/الوصف..." />
-      </div>
-
-      <div class="flex flex-col md:flex-row gap-2 md:items-center">
-        <select id="sortBy" class="p-2 rounded-xl text-sm">
-          <option value="order">الافتراضي</option>
-          <option value="name">اسم المادة</option>
-          <option value="remaining">المتبقي</option>
-          <option value="value">القيمة الإجمالية</option>
-          <option value="lowFirst">النواقص أولاً</option>
-        </select>
-
-        <select id="sortDir" class="p-2 rounded-xl text-sm">
-          <option value="asc">تصاعدي</option>
-          <option value="desc">تنازلي</option>
-        </select>
-
-        <button id="btnResetSort" class="btn btn-ghost">
-          <i class="fas fa-rotate-left"></i> إعادة
-        </button>
-      </div>
-    </div>
-
-    <!-- Add (admin only) -->
-    <div class="glass p-4 rounded-2xl mb-5" id="addCard">
-      <div class="flex items-center justify-between gap-2 mb-3">
-        <div class="font-extrabold">إضافة مادة</div>
-        <div class="text-xs" style="color:var(--muted)">الإضافة متاحة للأدمن فقط</div>
-      </div>
-
-      <form id="addForm" class="grid grid-cols-2 md:grid-cols-6 gap-3">
-        <div class="col-span-2 md:col-span-2">
-          <input type="text" id="name" class="w-full p-2 rounded-xl text-sm" placeholder="المادة..." required />
-        </div>
-
-        <div class="col-span-2 md:col-span-2">
-          <input type="text" id="desc" class="w-full p-2 rounded-xl text-sm" placeholder="الوصف..." />
-        </div>
-
-        <div>
-          <input type="text" id="img" class="w-full p-2 rounded-xl text-sm" placeholder="رابط صورة (اختياري)" />
-        </div>
-
-        <div>
-          <input type="number" id="start" class="w-full p-2 rounded-xl text-sm" placeholder="البداية" step="any" />
-        </div>
-
-        <div>
-          <input type="number" id="cost" class="w-full p-2 rounded-xl text-sm" placeholder="سعر CC" step="any" />
-        </div>
-
-        <div class="col-span-2 md:col-span-6">
-          <button type="submit" class="btn btn-primary w-full justify-center">
-            إضافة <i class="fas fa-plus"></i>
-          </button>
-        </div>
-      </form>
-    </div>
-
-    <!-- Table -->
-    <div class="glass rounded-2xl overflow-hidden shadow-2xl">
-      <div class="overflow-x-auto table-container">
-        <table class="w-full text-right border-collapse">
-          <thead>
-            <tr class="border-b border-slate-700">
-              <th class="p-3 text-center w-8">#</th>
-              <th class="p-3 text-center">صورة</th>
-              <th class="p-3" id="colLabel_name">المادة</th>
-              <th class="p-3" id="colLabel_desc">الوصف</th>
-              <th class="p-3 text-center" id="colLabel_start">البداية</th>
-              <th class="p-3 text-center" id="colLabel_bought">مشتريات</th>
-              <th class="p-3 text-center" id="colLabel_spent">مصروف</th>
-              <th class="p-3 text-center" id="colLabel_remaining">المتبقي</th>
-              <th class="p-3 text-center" id="colLabel_cost">سعر CC</th>
-              <th class="p-3 text-center" id="colLabel_value">القيمة الإجمالية</th>
-              <th class="p-3 text-center" id="colLabel_status">الحالة</th>
-              <th class="p-3 text-center">حذف</th>
-            </tr>
-          </thead>
-          <tbody id="tableBody"></tbody>
-        </table>
-      </div>
-    </div>
-
-    <div class="mt-4 text-xs" style="color:var(--muted)">
-      💡 الزوار يقدرون يقرون فقط. التعديل/الإضافة تحتاج تسجيل دخول Admin.
-    </div>
-  </div>
-
-  <!-- Settings Modal -->
-  <div id="settingsBackdrop" class="modal-backdrop">
-    <div class="modal glass p-5">
-      <div class="flex items-center justify-between gap-2 mb-4">
-        <div class="text-lg font-extrabold">الإعدادات</div>
-        <button id="btnCloseSettings" class="btn btn-ghost"><i class="fas fa-xmark"></i></button>
-      </div>
-
-      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <!-- Admin login -->
-        <div class="glass2 p-4 rounded-2xl">
-          <div class="font-extrabold mb-2">تسجيل دخول Admin</div>
-          <div class="text-xs mb-3" style="color:var(--muted)">Email/Password فقط. UID الأدمن لازم يكون ضمن Rules.</div>
-
-          <div class="grid grid-cols-1 gap-2">
-            <input id="adminEmail" type="email" class="p-2 rounded-xl text-sm" placeholder="Email الأدمن" />
-            <input id="adminPass" type="password" class="p-2 rounded-xl text-sm" placeholder="Password" />
-            <div class="flex gap-2">
-              <button id="adminLoginBtn" class="btn btn-primary flex-1 justify-center"><i class="fas fa-right-to-bracket"></i> دخول</button>
-              <button id="adminLogoutBtn" class="btn btn-ghost flex-1 justify-center"><i class="fas fa-right-from-bracket"></i> خروج</button>
-            </div>
-            <div id="adminState" class="text-sm"></div>
-          </div>
-        </div>
-
-        <!-- UI Settings (local) -->
-        <div class="glass2 p-4 rounded-2xl">
-          <div class="font-extrabold mb-2">إعدادات الواجهة (محلية للجهاز)</div>
-          <div class="grid grid-cols-1 gap-2">
-            <label class="text-sm" style="color:var(--muted)">الثيم</label>
-            <select id="themeSelect" class="p-2 rounded-xl text-sm">
-              <option value="theme-slate">Slate</option>
-              <option value="theme-dark">Dark</option>
-              <option value="theme-light">Light</option>
-              <option value="theme-emerald">Emerald</option>
-              <option value="theme-purple">Purple</option>
-            </select>
-
-            <label class="text-sm mt-2" style="color:var(--muted)">عنوان التطبيق</label>
-            <input id="titleInput" class="p-2 rounded-xl text-sm" placeholder="مثلاً: مخزن العيادة" />
-
-            <label class="text-sm mt-2" style="color:var(--muted)">عتبة النقص (الحالة = نقص إذا المتبقي ≤ هذا الرقم)</label>
-            <input id="lowThresholdInput" type="number" step="1" class="p-2 rounded-xl text-sm" />
-
-            <div class="flex gap-2 mt-2">
-              <button id="saveLocalSettingsBtn" class="btn btn-primary flex-1 justify-center"><i class="fas fa-floppy-disk"></i> حفظ</button>
-              <button id="resetLocalSettingsBtn" class="btn btn-ghost flex-1 justify-center"><i class="fas fa-rotate-left"></i> تصفير</button>
-            </div>
-          </div>
-        </div>
-
-        <!-- Column Labels -->
-        <div class="glass2 p-4 rounded-2xl md:col-span-2">
-          <div class="font-extrabold mb-2">تغيير أسماء الأعمدة (Labels)</div>
-          <div class="text-xs mb-3" style="color:var(--muted)">
-            هاي الإعدادات محلية للجهاز. (إذا تريدها “سحابية” للأدمن فقط نضيفها لاحقاً.)
-          </div>
-
-          <div class="grid grid-cols-2 md:grid-cols-4 gap-2">
-            <input id="lbl_name" class="p-2 rounded-xl text-sm" placeholder="المادة" />
-            <input id="lbl_desc" class="p-2 rounded-xl text-sm" placeholder="الوصف" />
-            <input id="lbl_start" class="p-2 rounded-xl text-sm" placeholder="البداية" />
-            <input id="lbl_bought" class="p-2 rounded-xl text-sm" placeholder="مشتريات" />
-            <input id="lbl_spent" class="p-2 rounded-xl text-sm" placeholder="مصروف" />
-            <input id="lbl_remaining" class="p-2 rounded-xl text-sm" placeholder="المتبقي" />
-            <input id="lbl_cost" class="p-2 rounded-xl text-sm" placeholder="سعر CC" />
-            <input id="lbl_value" class="p-2 rounded-xl text-sm" placeholder="القيمة الإجمالية" />
-            <input id="lbl_status" class="p-2 rounded-xl text-sm" placeholder="الحالة" />
-          </div>
-
-          <div class="flex gap-2 mt-3">
-            <button id="saveLabelsBtn" class="btn btn-primary flex-1 justify-center"><i class="fas fa-tag"></i> حفظ الأسماء</button>
-            <button id="resetLabelsBtn" class="btn btn-ghost flex-1 justify-center"><i class="fas fa-rotate-left"></i> افتراضي</button>
-          </div>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- App Script -->
-  <script type="module">
-    import { initializeApp } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-app.js";
-    import {
-      getAuth, signInAnonymously, onAuthStateChanged,
-      signInWithEmailAndPassword, signOut
-    } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-auth.js";
-    import {
-      getFirestore, collection, addDoc, updateDoc, deleteDoc,
-      doc, onSnapshot, query, writeBatch
-    } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-firestore.js";
-
-    // ========= 1) CONFIG =========
-    const firebaseConfig = {
-      apiKey: "AIzaSyC_KaWOZVWJ5WvVhUjiz58dx6d6sWH1EZQ",
-      authDomain: "clinic-storage.firebaseapp.com",
-      projectId: "clinic-storage",
-      storageBucket: "clinic-storage.firebasestorage.app",
-      messagingSenderId: "284636281654",
-      appId: "1:284636281654:web:aa19cd577c4efda5d21197"
-    };
-
-    const APP_ID = "clinic-storage"; // ثابت حتى يتزامن بين كل الأجهزة
-
-    // ========= 2) HELPERS =========
-    const $ = (id) => document.getElementById(id);
-    const esc = (v) => String(v ?? "").replace(/"/g, "&quot;");
-    const LS_KEY = "clinic_storage_settings_v1";
-    const LS_LABELS = "clinic_storage_labels_v1";
-
-    function invCol(db){
-      return collection(db, "artifacts", APP_ID, "public", "data", "inventory");
-    }
-
-    function setStatusOnline(uid){
-      $("syncStatus").innerHTML = '<i class="fas fa-circle text-[8px]"></i> متصل سحابياً';
-      $("syncStatus").className = "status-online";
-      $("userDisplay").innerText = `المعرف: ${uid.substring(0,8)}`;
-    }
-
-    function setStatusOffline(msg){
-      $("syncStatus").textContent = `فشل الاتصال${msg ? ": " + msg : ""}`;
-      $("syncStatus").className = "status-offline";
-    }
-
-    // ========= 3) LOCAL SETTINGS =========
-    const defaultLocalSettings = {
-      theme: "theme-slate",
-      title: "مخزن د. ثائر السحابي",
-      lowThreshold: 2
-    };
-
-    const defaultLabels = {
-      name:"المادة", desc:"الوصف", start:"البداية", bought:"مشتريات", spent:"مصروف",
-      remaining:"المتبقي", cost:"سعر CC", value:"القيمة الإجمالية", status:"الحالة"
-    };
-
-    function loadLocalSettings(){
-      try{
-        const s = JSON.parse(localStorage.getItem(LS_KEY) || "null");
-        return { ...defaultLocalSettings, ...(s||{}) };
-      }catch{ return { ...defaultLocalSettings }; }
-    }
-
-    function saveLocalSettings(s){
-      localStorage.setItem(LS_KEY, JSON.stringify(s));
-    }
-
-    function loadLabels(){
-      try{
-        const s = JSON.parse(localStorage.getItem(LS_LABELS) || "null");
-        return { ...defaultLabels, ...(s||{}) };
-      }catch{ return { ...defaultLabels }; }
-    }
-
-    function saveLabels(s){
-      localStorage.setItem(LS_LABELS, JSON.stringify(s));
-    }
-
-    function applyLocalSettings(){
-      const s = loadLocalSettings();
-      const root = $("appRoot");
-      root.classList.remove("theme-slate","theme-dark","theme-light","theme-emerald","theme-purple");
-      root.classList.add(s.theme);
-      $("appTitleText").innerText = s.title;
-      $("lowThresholdLabel").innerText = String(s.lowThreshold ?? 2);
-
-      // Modal fields
-      $("themeSelect").value = s.theme;
-      $("titleInput").value = s.title;
-      $("lowThresholdInput").value = String(s.lowThreshold ?? 2);
-    }
-
-    function applyLabels(){
-      const l = loadLabels();
-      $("colLabel_name").innerText = l.name;
-      $("colLabel_desc").innerText = l.desc;
-      $("colLabel_start").innerText = l.start;
-      $("colLabel_bought").innerText = l.bought;
-      $("colLabel_spent").innerText = l.spent;
-      $("colLabel_remaining").innerText = l.remaining;
-      $("colLabel_cost").innerText = l.cost;
-      $("colLabel_value").innerText = l.value;
-      $("colLabel_status").innerText = l.status;
-
-      $("lbl_name").value = l.name;
-      $("lbl_desc").value = l.desc;
-      $("lbl_start").value = l.start;
-      $("lbl_bought").value = l.bought;
-      $("lbl_spent").value = l.spent;
-      $("lbl_remaining").value = l.remaining;
-      $("lbl_cost").value = l.cost;
-      $("lbl_value").value = l.value;
-      $("lbl_status").value = l.status;
-    }
-
-    applyLocalSettings();
-    applyLabels();
-
-    // ========= 4) APP STATE =========
-    const app = initializeApp(firebaseConfig);
-    const auth = getAuth(app);
-    const db = getFirestore(app);
-
-    let currentUser = null;
-    let isAdminMode = false;   // فعلياً الأدمن حسب نجاح الكتابة
-    let inventory = [];
-    let sortableInited = false;
-
-    let viewSearch = "";
-    let viewSortBy = "order";
-    let viewSortDir = "asc";
-
-    function setRoleUI(){
-      $("roleBadge").classList.toggle("hidden", isAdminMode);
-      $("adminBadge").classList.toggle("hidden", !isAdminMode);
-      $("addCard").style.display = isAdminMode ? "block" : "none";
-    }
-
-    // ========= 5) AUTH =========
-    async function initAnonymous(){
-      try{
-        await signInAnonymously(auth);
-      }catch(e){
-        console.error(e);
-        setStatusOffline(e?.code || e?.message || "Auth error");
-      }
-    }
-
-    onAuthStateChanged(auth, async (user) => {
-  if (!user) return;
-
-  currentUser = user;
-  setStatusOnline(user.uid);
-  startRealtime();
-
-  // ✅ إذا الحساب Email/Password نعرض UI أدمن
-  isAdminMode = (user.providerData || []).some(p => p.providerId === "password");
-  setRoleUI();
-
-  // ✅ اختبار صلاحية كتابة خفيف (إذا ما عنده صلاحية يرجع قراءة فقط)
-  if (isAdminMode) {
-    try {
-      const testDocRef = doc(db, "artifacts", APP_ID, "public", "data", "meta", "admin_test");
-      await updateDoc(testDocRef, { lastCheck: Date.now() }); // لازم يكون meta/admin_test موجود (أو راح يفشل not-found)
-      // إذا نجح يعني فعلاً أدمن حسب Rules
-      isAdminMode = true;
-      setRoleUI();
-    } catch (e) {
-      // إذا not-found نخليها ما تأثر، أما permission-denied نرجع قراءة فقط
-      if (e?.code === "permission-denied") {
-        isAdminMode = false;
-        setRoleUI();
-        alert("دخلت بحساب Admin بس الـ Rules ما تسمح (UID مو أدمن).");
-      }
-    }
-  }
-});
-
-
-    // ========= 6) REALTIME =========
-    function startRealtime(){
-      const q = query(invCol(db));
-      onSnapshot(q, (snap) => {
-        inventory = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-        renderTable();
-      }, (err) => {
-        console.error(err);
-        setStatusOffline(err?.code || err?.message || "Firestore error");
-      });
-    }
-
-    // ========= 7) ADMIN WRITE CHECK (اختبار سريع) =========
-    async function probeAdminWrite(){
-      // نحاول نكتب update بسيط على Doc وهمي؟ الأفضل ما نسوي.
-      // بدلها: نخلي isAdminMode false افتراضياً، وإذا أي عملية كتابة نجحت نخليها true.
-      // وإذا فشلت permission-denied نخليها false.
-    }
-
-    // ========= 8) CRUD =========
-    window.updateField = async (id, field, value) => {
-      if(!currentUser) return;
-      const isText = ["name","desc","img"].includes(field);
-      const val = isText ? (value ?? "") : (parseFloat(value) || 0);
-
-      try{
-        await updateDoc(doc(db, "artifacts", APP_ID, "public", "data", "inventory", id), { [field]: val });
-        isAdminMode = true;
-        setRoleUI();
-      }catch(e){
-        console.error(e);
-        if(e?.code === "permission-denied"){
-          isAdminMode = false;
-          setRoleUI();
-          alert("❌ ما عندك صلاحية تعديل. سجّل دخول Admin.");
-          return;
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Medivault Pro</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Babel for on-the-fly TSX transpilation (essential for downloaded/local use) -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #0b1120;
+            color: #f8fafc;
+            margin: 0;
+            overflow-x: hidden;
         }
-        alert("صار خطأ بالتحديث. افتح Console وشوف السبب.");
-      }
-    };
-
-    window.deleteItem = async (id) => {
-      if(!confirm("حذف نهائي؟")) return;
-      try{
-        await deleteDoc(doc(db, "artifacts", APP_ID, "public", "data", "inventory", id));
-        isAdminMode = true;
-        setRoleUI();
-      }catch(e){
-        console.error(e);
-        if(e?.code === "permission-denied"){
-          isAdminMode = false; setRoleUI();
-          alert("❌ ما عندك صلاحية حذف. سجّل دخول Admin.");
-          return;
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 6px;
         }
-        alert("صار خطأ بالحذف.");
-      }
-    };
-
-    $("addForm").addEventListener("submit", async (e) => {
-      e.preventDefault();
-      const name = ($("name").value || "").trim();
-      if(!name){ return; }
-
-      const data = {
-        name,
-        desc: ($("desc").value || "").trim(),
-        img: ($("img").value || "").trim(),
-        start: parseFloat($("start").value) || 0,
-        bought: 0,
-        spent: 0,
-        cost: parseFloat($("cost").value) || 0,
-        order: inventory.length,
-        createdAt: Date.now()
-      };
-
-      try{
-        await addDoc(invCol(db), data);
-        isAdminMode = true; setRoleUI();
-        e.target.reset();
-      }catch(err){
-        console.error(err);
-        if(err?.code === "permission-denied"){
-          isAdminMode = false; setRoleUI();
-          alert("❌ ما عندك صلاحية إضافة. سجّل دخول Admin.");
-          return;
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: transparent;
         }
-        alert("صار خطأ بالإضافة.");
-      }
-    });
-
-    // ========= 9) VIEW (Search/Sort) =========
-    $("searchBox").addEventListener("input", (e) => {
-      viewSearch = (e.target.value || "").trim().toLowerCase();
-      renderTable();
-    });
-
-    $("sortBy").addEventListener("change", (e) => {
-      viewSortBy = e.target.value;
-      renderTable();
-    });
-
-    $("sortDir").addEventListener("change", (e) => {
-      viewSortDir = e.target.value;
-      renderTable();
-    });
-
-    $("btnResetSort").addEventListener("click", () => {
-      viewSortBy = "order"; viewSortDir = "asc";
-      $("sortBy").value = "order";
-      $("sortDir").value = "asc";
-      $("searchBox").value = "";
-      viewSearch = "";
-      renderTable();
-    });
-
-    function computeRemaining(item){
-      const start = Number(item.start)||0;
-      const bought = Number(item.bought)||0;
-      const spent = Number(item.spent)||0;
-      return (start + bought) - spent;
-    }
-
-    function computeValue(item){
-      const remaining = computeRemaining(item);
-      const cost = Number(item.cost)||0;
-      return remaining * cost;
-    }
-
-    function filteredSortedInventory(){
-      let arr = [...inventory];
-
-      if(viewSearch){
-        arr = arr.filter(it => {
-          const n = String(it.name||"").toLowerCase();
-          const d = String(it.desc||"").toLowerCase();
-          return n.includes(viewSearch) || d.includes(viewSearch);
-        });
-      }
-
-      const dir = viewSortDir === "desc" ? -1 : 1;
-
-      arr.sort((a,b) => {
-        if(viewSortBy === "order") return ((a.order||0)-(b.order||0))*dir;
-        if(viewSortBy === "name") return String(a.name||"").localeCompare(String(b.name||""), "ar") * dir;
-        if(viewSortBy === "remaining") return (computeRemaining(a)-computeRemaining(b))*dir;
-        if(viewSortBy === "value") return (computeValue(a)-computeValue(b))*dir;
-        if(viewSortBy === "lowFirst"){
-          const s = loadLocalSettings();
-          const th = Number(s.lowThreshold ?? 2);
-          const al = computeRemaining(a) <= th ? 0 : 1;
-          const bl = computeRemaining(b) <= th ? 0 : 1;
-          if(al !== bl) return (al - bl);
-          return (computeRemaining(a)-computeRemaining(b))*dir;
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: #1e293b;
+            border-radius: 10px;
         }
-        return 0;
-      });
-
-      return arr;
-    }
-
-    // ========= 10) RENDER =========
-    function renderTable(){
-      const body = $("tableBody");
-      if(!body) return;
-      body.innerHTML = "";
-
-      const s = loadLocalSettings();
-      const th = Number(s.lowThreshold ?? 2);
-
-      const list = filteredSortedInventory();
-
-      let totalVal = 0;
-      let lowCount = 0;
-
-      // إجمالي المصروف
-      let totalSpentCount = 0;
-
-      list.forEach((item) => {
-        const start = Number(item.start)||0;
-        const bought = Number(item.bought)||0;
-        const spent = Number(item.spent)||0;
-        const cost = Number(item.cost)||0;
-
-        const remaining = (start + bought) - spent;
-        const rowValue = remaining * cost;
-
-        totalVal += rowValue;
-        totalSpentCount += spent;
-        if(remaining <= th) lowCount++;
-
-        const statusText = remaining <= th ? "نقص" : "متوفر";
-        const statusClass = remaining <= th ? "text-red-300 font-extrabold" : "text-emerald-300 font-extrabold";
-
-        const imgUrl = String(item.img||"").trim();
-        const imgHtml = imgUrl
-          ? `<div class="imgbox"><img src="${esc(imgUrl)}" onerror="this.style.display='none'"></div>`
-          : `<div class="imgbox flex items-center justify-center"><i class="fas fa-image" style="color:var(--muted)"></i></div>`;
-
-        const tr = document.createElement("tr");
-        tr.className = "border-b border-slate-800/60 hover:bg-slate-800/30 transition-colors";
-        tr.setAttribute("data-id", item.id);
-
-        // إذا مو أدمن: نعطل الإدخال
-        const disabled = isAdminMode ? "" : "disabled";
-
-        tr.innerHTML = `
-          <td class="p-2 text-center"><i class="fas fa-grip-vertical handle"></i></td>
-
-          <td class="p-2 text-center">${imgHtml}</td>
-
-          <td class="p-2">
-            <input ${disabled} type="text" value="${esc(item.name)}"
-              onblur="updateField('${item.id}','name',this.value)"
-              class="name-input w-full bg-transparent border-none focus:ring-1 focus:ring-blue-500 font-extrabold rounded-xl px-2 py-1">
-          </td>
-
-          <td class="p-2">
-            <input ${disabled} type="text" value="${esc(item.desc)}"
-              onblur="updateField('${item.id}','desc',this.value)"
-              class="desc-input w-full bg-transparent border-none focus:ring-1 focus:ring-blue-500 rounded-xl px-2 py-1">
-          </td>
-
-          <td class="p-2 text-center">
-            <input ${disabled} type="number" step="any" value="${start}"
-              onchange="updateField('${item.id}','start',this.value)"
-              class="table-input w-20 p-1 rounded-xl text-center font-extrabold
-                     text-emerald-200 bg-emerald-500/10 border border-emerald-500/30">
-          </td>
-
-          <td class="p-2 text-center">
-            <input ${disabled} type="number" step="any" value="${bought}"
-              onchange="updateField('${item.id}','bought',this.value)"
-              class="table-input w-20 p-1 rounded-xl text-center font-extrabold
-                     text-sky-200 bg-sky-500/10 border border-sky-500/30">
-          </td>
-
-          <td class="p-2 text-center">
-            <input ${disabled} type="number" step="any" value="${spent}"
-              onchange="updateField('${item.id}','spent',this.value)"
-              class="table-input w-20 p-1 rounded-xl text-center font-extrabold
-                     text-orange-200 bg-orange-500/10 border border-orange-500/30">
-          </td>
-
-          <td class="p-2 text-center font-extrabold ${remaining <= th ? "text-red-300" : "text-slate-100"}">
-            ${remaining}
-          </td>
-
-          <td class="p-2 text-center">
-            <input ${disabled} type="number" step="any" value="${cost}"
-              onchange="updateField('${item.id}','cost',this.value)"
-              class="table-input w-24 p-1 rounded-xl text-center">
-          </td>
-
-          <td class="p-2 text-center font-extrabold" style="color:var(--accent)">
-            ${Number.isFinite(rowValue) ? rowValue.toLocaleString() : "0"}
-          </td>
-
-          <td class="p-2 text-center ${statusClass}">
-            ${statusText}
-          </td>
-
-          <td class="p-2 text-center">
-            <button ${disabled} onclick="deleteItem('${item.id}')"
-              class="text-slate-500 hover:text-red-400 transition-colors">
-              <i class="fas fa-trash-alt"></i>
-            </button>
-          </td>
-        `;
-
-        body.appendChild(tr);
-      });
-
-      $("totalValue").innerText = totalVal.toLocaleString() + " د.ع";
-      $("totalItems").innerText = String(list.length);
-      $("lowStockCount").innerText = String(lowCount);
-
-      // نخلي بالنص الصغير اسفل: إجمالي المصروف
-      // (بدون كارت إضافي، حتى تبقى بسيطة)
-      // إذا تريد كارت، أضيفه بسهولة.
-
-      ensureSortable();
-      setRoleUI();
-    }
-
-    // Drag reorder (Admin only)
-    function ensureSortable(){
-      if(sortableInited) return;
-      if(typeof Sortable === "undefined") return;
-      const tb = $("tableBody");
-
-      Sortable.create(tb, {
-        handle: ".handle",
-        animation: 150,
-        onEnd: async () => {
-          if(!isAdminMode){
-            alert("❌ ترتيب الصفوف للأدمن فقط.");
-            renderTable();
-            return;
-          }
-          try{
-            const batch = writeBatch(db);
-            document.querySelectorAll("#tableBody tr").forEach((row, idx) => {
-              const id = row.getAttribute("data-id");
-              if(!id) return;
-              batch.update(doc(db, "artifacts", APP_ID, "public", "data", "inventory", id), { order: idx });
-            });
-            await batch.commit();
-          }catch(e){
-            console.error(e);
-            if(e?.code === "permission-denied"){
-              isAdminMode = false; setRoleUI();
-              alert("❌ ما عندك صلاحية. سجّل دخول Admin.");
-            }
-          }
+        #failsafe-ui {
+            display: none;
+            position: fixed;
+            inset: 0;
+            z-index: 9999;
+            background: radial-gradient(circle at center, #1e293b 0%, #0b1120 100%);
+            align-items: center;
+            justify-content: center;
+            padding: 2rem;
         }
-      });
-
-      sortableInited = true;
-    }
-
-    // ========= 11) EXPORT / DOWNLOAD =========
-    window.downloadAppFile = () => {
-      const content = document.documentElement.outerHTML;
-      const blob = new Blob([content], { type: "text/html" });
-      const a = document.createElement("a");
-      a.href = URL.createObjectURL(blob);
-      a.download = "Clinic_Storage_System.html";
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-    };
-
-    window.exportToExcel = () => {
-      if(typeof XLSX === "undefined"){
-        alert("XLSX غير محمّلة");
-        return;
-      }
-
-      const labels = loadLabels();
-      const s = loadLocalSettings();
-      const th = Number(s.lowThreshold ?? 2);
-
-      const data = filteredSortedInventory().map(i => {
-        const start = Number(i.start)||0;
-        const bought = Number(i.bought)||0;
-        const spent = Number(i.spent)||0;
-        const cost = Number(i.cost)||0;
-        const remaining = (start + bought) - spent;
-        const status = remaining <= th ? "نقص" : "متوفر";
-
-        return {
-          [labels.name]: i.name || "",
-          [labels.desc]: i.desc || "",
-          "صورة": i.img || "",
-          [labels.start]: start,
-          [labels.bought]: bought,
-          [labels.spent]: spent,
-          [labels.remaining]: remaining,
-          [labels.cost]: cost,
-          [labels.value]: remaining * cost,
-          [labels.status]: status
+    </style>
+    <script>
+        // Shim process.env to prevent crashes on local machines without a build step
+        window.process = { 
+            env: { 
+                API_KEY: "" // Will be injected by the environment or replaced manually if needed
+            } 
         };
-      });
+    </script>
+<script type="importmap">
+{
+  "imports": {
+    "react": "https://esm.sh/react@^19.2.3",
+    "react-dom": "https://esm.sh/react-dom@^19.2.3",
+    "react-dom/": "https://esm.sh/react-dom@^19.2.3/",
+    "react/": "https://esm.sh/react@^19.2.3/",
+    "lucide-react": "https://esm.sh/lucide-react@^0.563.0",
+    "@google/genai": "https://esm.sh/@google/genai@^1.38.0",
+    "recharts": "https://esm.sh/recharts@^3.7.0"
+  }
+}
+</script>
+<link rel="stylesheet" href="/index.css">
+</head>
+<body>
+    <div id="root">
+        <div id="initial-loader" style="height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1rem;">
+            <div style="width: 40px; height: 40px; border: 3px solid #1e293b; border-top-color: #3b82f6; border-radius: 50%; animation: spin 1s linear infinite;"></div>
+            <p style="color: #64748b; font-size: 0.75rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.1em;">Loading System Modules...</p>
+        </div>
+    </div>
 
-      const ws = XLSX.utils.json_to_sheet(data);
-      const wb = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(wb, ws, "Inventory");
-      XLSX.writeFile(wb, `مخزن_د_ثائر_${new Date().toISOString().split("T")[0]}.xlsx`);
-    };
+    <div id="failsafe-ui">
+        <div style="max-width: 500px; width: 100%; background: #0f172a; border: 1px solid #1e293b; border-radius: 32px; padding: 3rem; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.5);">
+            <div style="width: 64px; height: 64px; background: rgba(59, 130, 246, 0.1); border: 1px solid rgba(59, 130, 246, 0.2); border-radius: 20px; display: flex; align-items: center; justify-content: center; margin-bottom: 2rem;">
+                <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#3b82f6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path><polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline><line x1="12" y1="22.08" x2="12" y2="12"></line></svg>
+            </div>
+            <h2 style="font-size: 1.5rem; font-weight: 800; color: white; margin-bottom: 1rem;">Local Server Required</h2>
+            <p style="color: #94a3b8; font-size: 0.875rem; line-height: 1.6; margin-bottom: 2rem;">
+                Browsers block secure modules when opened as a file. To launch <b>Medivault Pro</b>, please run a local server:
+            </p>
+            <div style="display: flex; flex-direction: column; gap: 1rem;">
+                <div style="background: #0b1120; border: 1px solid #1e293b; border-radius: 16px; padding: 1rem;">
+                    <p style="font-size: 10px; font-weight: 800; color: #64748b; text-transform: uppercase; margin-bottom: 0.5rem;">Quickest Fix (Terminal)</p>
+                    <code style="color: #3b82f6; font-size: 0.75rem;">npx serve .</code>
+                </div>
+                <div style="background: #0b1120; border: 1px solid #1e293b; border-radius: 16px; padding: 1rem;">
+                    <p style="font-size: 10px; font-weight: 800; color: #64748b; text-transform: uppercase; margin-bottom: 0.5rem;">Developer Choice (VS Code)</p>
+                    <p style="color: #cbd5e1; font-size: 0.75rem;">Right-click index.html & select "Open with Live Server".</p>
+                </div>
+            </div>
+            <button onclick="window.location.reload()" style="width: 100%; margin-top: 2rem; background: #3b82f6; color: white; border: none; padding: 1rem; border-radius: 12px; font-weight: 700; cursor: pointer;">I've Started the Server</button>
+        </div>
+    </div>
 
-    // ========= 12) SETTINGS MODAL =========
-    function openSettings(){ $("settingsBackdrop").classList.add("show"); }
-    function closeSettings(){ $("settingsBackdrop").classList.remove("show"); }
+    <script>
+        window.addEventListener('load', () => {
+            setTimeout(() => {
+                const root = document.getElementById('root');
+                if (root && root.innerHTML.includes('initial-loader')) {
+                    document.getElementById('initial-loader').style.display = 'none';
+                    document.getElementById('failsafe-ui').style.display = 'flex';
+                }
+            }, 3000);
+        });
+        window.addEventListener('error', function(e) {
+            if (e.target.tagName === 'SCRIPT' || e.message.includes('CORS')) {
+                document.getElementById('initial-loader').style.display = 'none';
+                document.getElementById('failsafe-ui').style.display = 'flex';
+            }
+        }, true);
+    </script>
 
-    $("btnSettings").addEventListener("click", openSettings);
-    $("btnCloseSettings").addEventListener("click", closeSettings);
-    $("settingsBackdrop").addEventListener("click", (e) => {
-      if(e.target === $("settingsBackdrop")) closeSettings();
-    });
-
-    // Local settings save/reset
-    $("saveLocalSettingsBtn").addEventListener("click", () => {
-      const s = loadLocalSettings();
-      s.theme = $("themeSelect").value;
-      s.title = ($("titleInput").value || "").trim() || defaultLocalSettings.title;
-      s.lowThreshold = Math.max(0, parseInt($("lowThresholdInput").value || "2", 10));
-      saveLocalSettings(s);
-      applyLocalSettings();
-      renderTable();
-      alert("✅ تم حفظ إعدادات الواجهة (محلياً).");
-    });
-
-    $("resetLocalSettingsBtn").addEventListener("click", () => {
-      saveLocalSettings({ ...defaultLocalSettings });
-      applyLocalSettings();
-      renderTable();
-      alert("✅ رجعنا الإعدادات للوضع الافتراضي.");
-    });
-
-    // Labels save/reset
-    $("saveLabelsBtn").addEventListener("click", () => {
-      const l = {
-        name: $("lbl_name").value || defaultLabels.name,
-        desc: $("lbl_desc").value || defaultLabels.desc,
-        start: $("lbl_start").value || defaultLabels.start,
-        bought: $("lbl_bought").value || defaultLabels.bought,
-        spent: $("lbl_spent").value || defaultLabels.spent,
-        remaining: $("lbl_remaining").value || defaultLabels.remaining,
-        cost: $("lbl_cost").value || defaultLabels.cost,
-        value: $("lbl_value").value || defaultLabels.value,
-        status: $("lbl_status").value || defaultLabels.status
-      };
-      saveLabels(l);
-      applyLabels();
-      alert("✅ تم حفظ أسماء الأعمدة (محلياً).");
-    });
-
-    $("resetLabelsBtn").addEventListener("click", () => {
-      saveLabels({ ...defaultLabels });
-      applyLabels();
-      alert("✅ رجعنا أسماء الأعمدة للوضع الافتراضي.");
-    });
-
-    // ========= 13) ADMIN LOGIN =========
-    function setAdminState(msg, ok=false){
-      $("adminState").textContent = msg;
-      $("adminState").style.color = ok ? "var(--good)" : "var(--bad)";
-    }
-
-    $("adminLoginBtn").addEventListener("click", async () => {
-      try{
-        const email = ($("adminEmail").value || "").trim();
-        const pass  = ($("adminPass").value || "");
-        if(!email || !pass){
-          setAdminState("اكتب الإيميل والباسورد", false);
-          return;
-        }
-        await signInWithEmailAndPassword(auth, email, pass);
-        // إذا الحساب أدمن فعلاً، أول عملية كتابة راح تثبّت isAdminMode = true
-        setAdminState("✅ تم تسجيل الدخول. جرّب تعديل أي خانة.", true);
-      }catch(e){
-        console.error(e);
-        setAdminState("❌ فشل الدخول", false);
-        alert(e?.code || e?.message || "Login error");
-      }
-    });
-
-    $("adminLogoutBtn").addEventListener("click", async () => {
-      try{
-        await signOut(auth);
-        isAdminMode = false;
-        setRoleUI();
-        setAdminState("تم الخروج", true);
-        // يرجع Anonymous تلقائياً حتى يبقى يقرأ
-        await initAnonymous();
-      }catch(e){
-        console.error(e);
-      }
-    });
-
-    // ========= 14) INIT =========
-    // افتراضياً قراءة فقط
-    isAdminMode = false;
-    setRoleUI();
-    initAnonymous();
-  </script>
+    <style>@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }</style>
+    <script type="text/babel" data-type="module" data-presets="react,typescript" src="./index.tsx"></script>
+<script type="module" src="/index.tsx"></script>
 </body>
 </html>
